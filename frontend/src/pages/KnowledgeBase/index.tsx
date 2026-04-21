@@ -195,14 +195,6 @@ const KnowledgeBasePage: React.FC = () => {
           >
             编辑
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<BuildOutlined />}
-            onClick={() => handleBuild(record.id)}
-          >
-            构建索引
-          </Button>
           <Popconfirm
             title="确定删除该知识库？"
             onConfirm={() => handleDelete(record.id)}
