@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.health import router as health_router
+from app.api.routes.jobs import router as jobs_router
 from app.api.routes.kb import router as kb_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     # Register routers
     app.include_router(health_router)
     app.include_router(kb_router)
+    app.include_router(jobs_router)
 
     logger.info("application_started", app_name=settings.app_name, env=settings.app_env)
     return app
