@@ -199,7 +199,7 @@ class IngestionTaskService:
         return written_path
 
     def _run_chunking(self, parsed: ParsedDocument, doc: Document) -> list[ChunkData]:
-        """Run the appropriate chunker + table chunker."""
+        """Run the appropriate chunker + table chunker, then assign page numbers."""
         # Determine chunker name from KB settings or default
         kb = doc.knowledge_base
         chunker_name = "docling_hybrid"
@@ -227,7 +227,34 @@ class IngestionTaskService:
             except KeyError:
                 logger.warning("table_chunker_not_found")
 
+        # Assign page numbers to chunks that don't have them
+        self._assign_page_numbers(chunks, parsed)
+
         return chunks
+
+    def _assign_page_numbers(self, chunks: list[ChunkData], parsed: ParsedDocument) -> None:
+        """Assign page_start/page_end to chunks by matching content against pages."""
+        if not parsed.pages:
+            return
+
+        for chunk in chunks:
+            if chunk.page_start is not None:
+                continue  # Already has page info (e.g., table chunks)
+
+            # Find which page(s) contain this chunk's content
+            chunk_text = chunk.content[:200]  # Use first 200 chars for matching
+            matched_pages = []
+            for page in parsed.pages:
+                if page.content and chunk_text[:80] in page.content:
+                    matched_pages.append(page.page_number)
+
+            if matched_pages:
+                chunk.page_start = min(matched_pages)
+                chunk.page_end = max(matched_pages)
+            elif len(parsed.pages) == 1:
+                # Single page document - all chunks belong to page 1
+                chunk.page_start = parsed.pages[0].page_number
+                chunk.page_end = parsed.pages[0].page_number
 
     def _save_chunks(
         self,
