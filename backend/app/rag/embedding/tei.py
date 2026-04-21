@@ -103,11 +103,11 @@ class TEIEmbeddingProvider(EmbeddingProvider):
                         sparse[entry["index"]] = entry["value"]
                     results.append(sparse)
                 return results
-        except (httpx.HTTPStatusError, httpx.ConnectError) as e:
+        except Exception as e:
             logger.warning(
                 "sparse_embedding_unavailable",
                 url=url,
                 error=str(e),
             )
-            # Return empty sparse vectors as fallback
+            # Return empty sparse vectors as fallback (TEI may not support sparse for this model)
             return [{} for _ in texts]
