@@ -177,12 +177,15 @@ async def disable_document(
 async def delete_document(
     doc_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
+    storage: StorageBackend = Depends(get_storage),
 ) -> None:
-    """Soft-delete a document and schedule Qdrant cleanup."""
+    """Soft-delete a document and clean up files + Qdrant points."""
     repo = DocumentRepository(session)
     doc = await repo.get_by_id(doc_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Document {doc_id} not found")
+
+    storage_path = doc.storage_path
 
     # Collect qdrant_point_ids from chunks before soft-deleting
     chunk_repo = ChunkRepository(session)
@@ -191,7 +194,38 @@ async def delete_document(
 
     await repo.soft_delete(doc)
 
-    # Best-effort Qdrant cleanup (non-blocking, failures are logged)
+    # Best-effort local file cleanup
+    try:
+        await storage.delete(storage_path)
+    except Exception:
+        import structlog
+        structlog.get_logger(__name__).warning(
+            "file_cleanup_failed",
+            doc_id=str(doc_id),
+            storage_path=storage_path,
+        )
+
+    # Best-effort parsed output cleanup
+    try:
+        from app.core.config import get_settings
+        from app.storage.local import LocalStorage
+
+        settings = get_settings()
+        parsed_storage = LocalStorage(base_dir=settings.parsed_dir)
+        # Delete the entire doc's parsed directory
+        import shutil
+        from pathlib import Path
+        parsed_doc_dir = Path(str(settings.parsed_dir)) / str(doc.knowledge_base_id) / str(doc_id)
+        if parsed_doc_dir.exists():
+            shutil.rmtree(parsed_doc_dir)
+    except Exception:
+        import structlog
+        structlog.get_logger(__name__).warning(
+            "parsed_cleanup_failed",
+            doc_id=str(doc_id),
+        )
+
+    # Best-effort Qdrant cleanup
     if point_ids:
         try:
             from app.core.config import get_settings
@@ -207,7 +241,6 @@ async def delete_document(
             await vs.delete(point_ids)
             await vs.close()
         except Exception:
-            # Log but don't fail the delete operation
             import structlog
             structlog.get_logger(__name__).warning(
                 "qdrant_cleanup_failed",
