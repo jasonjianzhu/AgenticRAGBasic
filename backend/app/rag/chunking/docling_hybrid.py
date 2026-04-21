@@ -19,28 +19,36 @@ def _build_page_index(pages: list[ParsedPage]) -> list[tuple[int, str]]:
     return [(p.page_number, p.content) for p in pages if p.content.strip()]
 
 
+def _strip_markdown(text: str) -> str:
+    """Remove markdown formatting for content matching."""
+    # Remove header markers
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    # Remove bold/italic
+    text = re.sub(r"\*{1,3}(.+?)\*{1,3}", r"\1", text)
+    # Remove inline code
+    text = re.sub(r"`(.+?)`", r"\1", text)
+    return text.strip()
+
+
 def _find_pages_for_text(text: str, page_index: list[tuple[int, str]]) -> tuple[int | None, int | None]:
     """Find page_start and page_end for a chunk text by matching against page contents."""
     if not page_index or not text.strip():
         return None, None
 
-    snippet = text.strip()[:120]
-    matched = []
-    for page_num, page_content in page_index:
-        if snippet in page_content:
-            matched.append(page_num)
+    # Strip markdown from chunk text before matching against plain-text pages
+    clean = _strip_markdown(text)
 
-    if matched:
-        return min(matched), max(matched)
-
-    # Fallback: try shorter snippet
-    snippet_short = text.strip()[:50]
-    for page_num, page_content in page_index:
-        if snippet_short and snippet_short in page_content:
-            matched.append(page_num)
-
-    if matched:
-        return min(matched), max(matched)
+    # Try progressively shorter snippets
+    for length in (120, 60, 30):
+        snippet = clean[:length]
+        if not snippet:
+            continue
+        matched = []
+        for page_num, page_content in page_index:
+            if snippet in page_content:
+                matched.append(page_num)
+        if matched:
+            return min(matched), max(matched)
 
     return None, None
 
