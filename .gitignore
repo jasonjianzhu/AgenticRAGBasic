@@ -34,8 +34,8 @@ var/logs/
 *.log
 
 # Storage
-var/uploads/
-var/parsed/
+var/
+backend/var/
 
 # Test / Coverage
 .coverage
