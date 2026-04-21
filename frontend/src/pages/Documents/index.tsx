@@ -141,7 +141,7 @@ const DocumentsPage: React.FC = () => {
   const handleUpload = async (file: File) => {
     if (!uploadKB) {
       message.warning('请先选择知识库');
-      return false;
+      return;
     }
     setUploading(true);
     try {
@@ -162,7 +162,6 @@ const DocumentsPage: React.FC = () => {
     } finally {
       setUploading(false);
     }
-    return false; // prevent antd auto upload
   };
 
   const handleToggle = async (doc: DocumentResponse) => {
@@ -398,9 +397,10 @@ const DocumentsPage: React.FC = () => {
           accept=".pdf"
           multiple={false}
           showUploadList={false}
+          customRequest={() => {}} 
           beforeUpload={(file) => {
             handleUpload(file as unknown as File);
-            return false;
+            return Upload.LIST_IGNORE;
           }}
           disabled={uploading || !uploadKB}
           style={{ maxWidth: 600 }}
