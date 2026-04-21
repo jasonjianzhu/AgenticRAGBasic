@@ -14,15 +14,36 @@ from app.api.schemas.kb import (
     KBStatistics,
     KBUpdate,
 )
+from app.core.config import Settings, get_settings
 from app.core.dependencies import get_db
+from app.db.repositories.documents import DocumentRepository
+from app.jobs.queue import InMemoryJobQueue, JobQueue
+from app.services.jobs import JobService
 from app.services.kb import KBDuplicateNameError, KBNotFoundError, KBService
 
 router = APIRouter(prefix="/kb", tags=["knowledge-base"])
+
+# Module-level default job queue (overridable via dependency)
+_default_kb_job_queue: JobQueue = InMemoryJobQueue()
+
+
+def get_kb_job_queue() -> JobQueue:
+    """Dependency to get job queue for KB routes."""
+    return _default_kb_job_queue
 
 
 def _get_service(session: AsyncSession = Depends(get_db)) -> KBService:
     """Dependency to get KB service."""
     return KBService(session)
+
+
+def _get_job_service(
+    session: AsyncSession = Depends(get_db),
+    job_queue: JobQueue = Depends(get_kb_job_queue),
+    settings: Settings = Depends(get_settings),
+) -> JobService:
+    """Dependency to get job service for KB routes."""
+    return JobService(session, job_queue, settings)
 
 
 @router.post("", response_model=KBResponse, status_code=status.HTTP_201_CREATED)
@@ -105,3 +126,44 @@ async def delete_kb(
         await service.delete_kb(kb_id)
     except KBNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{kb_id}/build", status_code=status.HTTP_202_ACCEPTED)
+async def build_index(
+    kb_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    kb_service: KBService = Depends(_get_service),
+    job_service: JobService = Depends(_get_job_service),
+):
+    """Trigger index rebuild for all ready/chunked documents in a KB.
+
+    Enqueues indexing jobs for each eligible document.
+    Returns the list of enqueued job IDs.
+    """
+    # Verify KB exists
+    try:
+        await kb_service.get_kb(kb_id)
+    except KBNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    # Find all documents with status "chunked" or "ready"
+    doc_repo = DocumentRepository(session)
+    chunked_docs = await doc_repo.list_documents(
+        knowledge_base_id=kb_id, status="chunked", limit=10000
+    )
+    ready_docs = await doc_repo.list_documents(
+        knowledge_base_id=kb_id, status="ready", limit=10000
+    )
+
+    all_docs = list(chunked_docs) + list(ready_docs)
+    job_ids = []
+
+    for doc in all_docs:
+        job_log = await job_service.enqueue_indexing(doc.id)
+        job_ids.append(str(job_log.id))
+
+    return {
+        "kb_id": str(kb_id),
+        "jobs_enqueued": len(job_ids),
+        "job_ids": job_ids,
+    }

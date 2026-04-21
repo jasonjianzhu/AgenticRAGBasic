@@ -17,21 +17,31 @@ from app.core.config import Settings, get_settings
 from app.core.dependencies import get_db
 from app.db.repositories.chunks import ChunkRepository
 from app.db.repositories.documents import DocumentRepository
+from app.jobs.queue import InMemoryJobQueue, JobQueue
 from app.services.ingestion import (
     FileTooLargeError,
     IngestionService,
     InvalidFileError,
     KBNotFoundError,
 )
+from app.services.jobs import JobService
 from app.storage.base import StorageBackend
 from app.storage.local import LocalStorage
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
+# Module-level default job queue (overridable via dependency)
+_default_job_queue: JobQueue = InMemoryJobQueue()
+
 
 def get_storage(settings: Settings = Depends(get_settings)) -> StorageBackend:
     """Dependency to get storage backend."""
     return LocalStorage(base_dir=settings.upload_dir)
+
+
+def get_job_queue() -> JobQueue:
+    """Dependency to get job queue."""
+    return _default_job_queue
 
 
 def _get_ingestion_service(
@@ -43,6 +53,15 @@ def _get_ingestion_service(
     return IngestionService(session, storage, settings)
 
 
+def _get_job_service(
+    session: AsyncSession = Depends(get_db),
+    job_queue: JobQueue = Depends(get_job_queue),
+    settings: Settings = Depends(get_settings),
+) -> JobService:
+    """Dependency to get job service."""
+    return JobService(session, job_queue, settings)
+
+
 @router.post("/upload", response_model=DocumentResponse, responses={200: {"model": DocumentResponse}, 201: {"model": DocumentResponse}})
 async def upload_document(
     file: UploadFile = File(...),
@@ -50,6 +69,7 @@ async def upload_document(
     document_type: str = Form(default="unknown"),
     parser_profile: str | None = Form(default=None),
     service: IngestionService = Depends(_get_ingestion_service),
+    job_service: JobService = Depends(_get_job_service),
 ):
     """Upload a document to a knowledge base."""
     file_data = await file.read()
@@ -70,7 +90,17 @@ async def upload_document(
     except FileTooLargeError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    # Enqueue ingestion job for new documents
+    job_id = None
+    if is_new:
+        job_log = await job_service.enqueue_ingestion(
+            doc.id,
+            parser_profile=parser_profile or "balanced",
+        )
+        job_id = job_log.id
+
     response_data = DocumentResponse.model_validate(doc)
+    response_data.job_id = job_id
     status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     return JSONResponse(
         content=response_data.model_dump(mode="json"),
@@ -148,12 +178,42 @@ async def delete_document(
     doc_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft-delete a document."""
+    """Soft-delete a document and schedule Qdrant cleanup."""
     repo = DocumentRepository(session)
     doc = await repo.get_by_id(doc_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Document {doc_id} not found")
+
+    # Collect qdrant_point_ids from chunks before soft-deleting
+    chunk_repo = ChunkRepository(session)
+    chunks = await chunk_repo.list_by_document(doc_id, limit=100000)
+    point_ids = [c.qdrant_point_id for c in chunks if c.qdrant_point_id]
+
     await repo.soft_delete(doc)
+
+    # Best-effort Qdrant cleanup (non-blocking, failures are logged)
+    if point_ids:
+        try:
+            from app.core.config import get_settings
+            from app.rag.vector_store.qdrant import QdrantVectorStore
+
+            settings = get_settings()
+            vs = QdrantVectorStore(
+                url=settings.qdrant_url,
+                collection_name=settings.qdrant_collection_name,
+                api_key=settings.qdrant_api_key,
+                dense_dim=settings.embedding_dimension,
+            )
+            await vs.delete(point_ids)
+            await vs.close()
+        except Exception:
+            # Log but don't fail the delete operation
+            import structlog
+            structlog.get_logger(__name__).warning(
+                "qdrant_cleanup_failed",
+                doc_id=str(doc_id),
+                point_count=len(point_ids),
+            )
 
 
 @router.get("/{doc_id}/chunks", response_model=ChunkListResponse)
