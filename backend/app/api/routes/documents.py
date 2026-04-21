@@ -152,6 +152,8 @@ async def get_document_file(
     storage: StorageBackend = Depends(get_storage),
 ):
     """Download the original PDF file for preview."""
+    from urllib.parse import quote
+
     from fastapi.responses import Response
 
     repo = DocumentRepository(session)
@@ -163,11 +165,16 @@ async def get_document_file(
         data = await storage.read(doc.storage_path)
     except FileNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to read file: {e}")
+
+    # URL-encode filename for Content-Disposition header (handles Chinese chars)
+    encoded_name = quote(doc.source_filename)
 
     return Response(
         content=data,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{doc.source_filename}"'},
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_name}"},
     )
 
 
