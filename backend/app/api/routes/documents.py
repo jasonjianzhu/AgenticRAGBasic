@@ -145,6 +145,32 @@ async def get_document(
     return DocumentResponse.model_validate(doc)
 
 
+@router.get("/{doc_id}/file")
+async def get_document_file(
+    doc_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    storage: StorageBackend = Depends(get_storage),
+):
+    """Download the original PDF file for preview."""
+    from fastapi.responses import Response
+
+    repo = DocumentRepository(session)
+    doc = await repo.get_by_id(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Document {doc_id} not found")
+
+    try:
+        data = await storage.read(doc.storage_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
+
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{doc.source_filename}"'},
+    )
+
+
 @router.post("/{doc_id}/enable", response_model=DocumentResponse)
 async def enable_document(
     doc_id: uuid.UUID,

@@ -84,6 +84,10 @@ export async function getDocument(docId: string) {
   return res.data;
 }
 
+export function getDocumentFileUrl(docId: string): string {
+  return `/api/documents/${docId}/file`;
+}
+
 export async function enableDocument(docId: string) {
   const res = await api.post<DocumentResponse>(`/documents/${docId}/enable`);
   return res.data;

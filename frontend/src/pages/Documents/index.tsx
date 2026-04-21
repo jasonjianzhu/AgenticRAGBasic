@@ -18,6 +18,7 @@ import {
   ReloadOutlined,
   DeleteOutlined,
   EyeOutlined,
+  FilePdfOutlined,
   CheckCircleOutlined,
   StopOutlined,
   RedoOutlined,
@@ -103,6 +104,11 @@ const DocumentsPage: React.FC = () => {
   const [chunks, setChunks] = useState<ChunkResponse[]>([]);
   const [chunkTotal, setChunkTotal] = useState(0);
   const [chunkDocTitle, setChunkDocTitle] = useState('');
+
+  // PDF preview
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
+  const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
 
   const fetchKBs = useCallback(async () => {
     try {
@@ -290,6 +296,18 @@ const DocumentsPage: React.FC = () => {
           <Button
             type="link"
             size="small"
+            icon={<FilePdfOutlined />}
+            onClick={() => {
+              setPdfPreviewTitle(record.title);
+              setPdfPreviewUrl(api.getDocumentFileUrl(record.id));
+              setPdfPreviewOpen(true);
+            }}
+          >
+            预览
+          </Button>
+          <Button
+            type="link"
+            size="small"
             icon={<EyeOutlined />}
             onClick={() => openChunks(record)}
           >
@@ -469,6 +487,25 @@ const DocumentsPage: React.FC = () => {
           size="small"
           scroll={{ x: 800 }}
         />
+      </Modal>
+
+      {/* PDF preview modal */}
+      <Modal
+        title={`PDF 预览 - ${pdfPreviewTitle}`}
+        open={pdfPreviewOpen}
+        onCancel={() => { setPdfPreviewOpen(false); setPdfPreviewUrl(''); }}
+        footer={null}
+        width={900}
+        styles={{ body: { height: '80vh', padding: 0 } }}
+        destroyOnClose
+      >
+        {pdfPreviewUrl && (
+          <iframe
+            src={pdfPreviewUrl}
+            style={{ width: '100%', height: '80vh', border: 'none' }}
+            title="PDF Preview"
+          />
+        )}
       </Modal>
     </div>
   );
