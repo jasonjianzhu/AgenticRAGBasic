@@ -1,0 +1,92 @@
+"""Application configuration management using pydantic-settings."""
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    """Central application settings loaded from environment / .env file."""
+
+    # --- Application ---
+    app_name: str = Field(default="AgenticRAG", alias="APP_NAME")
+    app_env: str = Field(default="development", alias="APP_ENV")
+    app_host: str = Field(default="127.0.0.1", alias="APP_HOST")
+    app_port: int = Field(default=8000, alias="APP_PORT")
+    debug: bool = Field(default=False, alias="DEBUG")
+
+    # --- Database ---
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/agenticrag",
+        alias="DATABASE_URL",
+    )
+    database_url_sync: str = Field(
+        default="postgresql+psycopg://postgres:postgres@localhost:5432/agenticrag",
+        alias="DATABASE_URL_SYNC",
+    )
+
+    # --- Redis ---
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+
+    # --- Qdrant ---
+    qdrant_url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
+    qdrant_api_key: str | None = Field(default=None, alias="QDRANT_API_KEY")
+    qdrant_collection_name: str = Field(default="agenticrag_chunks", alias="QDRANT_COLLECTION_NAME")
+
+    # --- Embedding ---
+    tei_base_url: str = Field(default="http://127.0.0.1:8080", alias="TEI_BASE_URL")
+    tei_api_key: str | None = Field(default=None, alias="TEI_API_KEY")
+    embedding_model_name: str = Field(default="BAAI/bge-m3", alias="EMBEDDING_MODEL_NAME")
+    embedding_dimension: int = Field(default=1024, alias="EMBEDDING_DIMENSION")
+    embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
+
+    # --- RQ / Worker ---
+    rq_ingestion_queue: str = Field(default="ingestion", alias="RQ_INGESTION_QUEUE")
+    rq_indexing_queue: str = Field(default="indexing", alias="RQ_INDEXING_QUEUE")
+    rq_ingestion_timeout: int = Field(default=300, alias="RQ_INGESTION_TIMEOUT")
+    rq_indexing_timeout: int = Field(default=300, alias="RQ_INDEXING_TIMEOUT")
+    rq_max_retries: int = Field(default=2, alias="RQ_MAX_RETRIES")
+
+    # --- File Storage ---
+    upload_dir: Path = Field(default=ROOT_DIR / "var" / "uploads", alias="UPLOAD_DIR")
+    parsed_dir: Path = Field(default=ROOT_DIR / "var" / "parsed", alias="PARSED_DIR")
+    max_upload_size_bytes: int = Field(default=50 * 1024 * 1024, alias="MAX_UPLOAD_SIZE_BYTES")
+
+    # --- Logging ---
+    log_dir: Path = Field(default=ROOT_DIR / "var" / "logs", alias="LOG_DIR")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_file: str = Field(default="agenticrag.log", alias="LOG_FILE")
+    log_max_bytes: int = Field(default=10 * 1024 * 1024, alias="LOG_MAX_BYTES")
+    log_backup_count: int = Field(default=5, alias="LOG_BACKUP_COUNT")
+
+    # --- Parser ---
+    parser_timeout_seconds: float = Field(default=300.0, alias="PARSER_TIMEOUT_SECONDS")
+
+    # --- Retrieval ---
+    retrieval_rrf_k: int = Field(default=60, alias="RETRIEVAL_RRF_K")
+    qdrant_write_batch_size: int = Field(default=100, alias="QDRANT_WRITE_BATCH_SIZE")
+
+    model_config = SettingsConfigDict(
+        env_file=ROOT_DIR / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    def ensure_dirs(self) -> None:
+        """Create required directories if they don't exist."""
+        for d in (self.upload_dir, self.parsed_dir, self.log_dir):
+            d.mkdir(parents=True, exist_ok=True)
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return cached application settings singleton."""
+    settings = Settings()
+    settings.ensure_dirs()
+    return settings

@@ -3,19 +3,16 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-env/
-venv/
-.venv/
 *.egg-info/
+*.egg
 dist/
 build/
 .eggs/
 
-# Environment
-.env
-.env.local
-.env.*.local
+# Virtual environment
+.venv/
+venv/
+ENV/
 
 # IDE
 .idea/
@@ -28,27 +25,27 @@ build/
 .DS_Store
 Thumbs.db
 
-# Testing
-.pytest_cache/
+# Environment
+.env
+!.env.example
+
+# Logs
+var/logs/
+*.log
+
+# Storage
+var/uploads/
+var/parsed/
+
+# Test / Coverage
 .coverage
 htmlcov/
-.mypy_cache/
+.pytest_cache/
 
-# Node / Frontend
+# Alembic
+migrations/versions/*.pyc
+
+# Node
 node_modules/
 frontend/dist/
 frontend/build/
-.next/
-
-# Data & Logs
-var/
-*.log
-
-# Docker
-docker-compose.override.yml
-
-# Alembic
-migrations/versions/__pycache__/
-
-# Failed previous code (keep for reference but don't track changes)
-failedShitCodexCode/

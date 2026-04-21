@@ -1,0 +1,12 @@
+[
+  {
+    "query": "E101 怎么处理",
+    "expected_chunk_ids": ["chunk-alarm-e101"],
+    "expected_answer_keywords": ["E101", "overheat", "cooling"]
+  },
+  {
+    "query": "每月维护要检查什么",
+    "expected_chunk_ids": ["chunk-maintenance-monthly"],
+    "expected_answer_keywords": ["maintenance", "wiring", "month"]
+  }
+]

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ page_title or "AgenticRAG" }}</title>
+    <link rel="stylesheet" href="/static/app.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <div>
+            <div class="brand-title">AgenticRAG</div>
+            <div class="brand-subtitle">Green Intelligence Console</div>
+          </div>
+        </div>
+        <nav class="nav">
+          <a href="/" class="nav-link">文档管理</a>
+          <a href="/ui/rag" class="nav-link">RAG 问答</a>
+        </nav>
+      </aside>
+      <main class="content">
+        <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>
