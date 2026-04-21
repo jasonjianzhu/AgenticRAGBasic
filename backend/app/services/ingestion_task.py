@@ -228,7 +228,9 @@ class IngestionTaskService:
                 logger.warning("table_chunker_not_found")
 
         # Assign page numbers to chunks that don't have them
-        self._assign_page_numbers(chunks, parsed)
+        # (only for recursive_token fallback; docling_hybrid and markdown_header set pages directly)
+        if any(c.page_start is None for c in chunks) and parsed.pages:
+            self._assign_page_numbers(chunks, parsed)
 
         return chunks
 
