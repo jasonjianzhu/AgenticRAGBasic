@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 
 def run_ingestion(document_id: str, **kwargs) -> None:
-    """Execute document ingestion (parse + chunk).
+    """Execute document ingestion (parse + chunk), then auto-enqueue indexing.
 
     Called by RQ worker from the ingestion queue.
     """
@@ -35,9 +35,24 @@ def run_ingestion(document_id: str, **kwargs) -> None:
         try:
             service.run(doc_uuid, parser_profile=parser_profile)
         except Exception as e:
-            # Update job status to failed if we have a job_id
             logger.exception("ingestion_task_failed", document_id=document_id, error=str(e))
             raise
+
+    # Auto-enqueue indexing after successful ingestion
+    try:
+        from redis import Redis
+        from rq import Queue
+
+        redis_conn = Redis.from_url(settings.redis_url)
+        indexing_queue = Queue(settings.rq_indexing_queue, connection=redis_conn)
+        indexing_queue.enqueue(
+            "app.jobs.tasks.run_indexing",
+            document_id=document_id,
+            job_timeout=settings.rq_indexing_timeout,
+        )
+        logger.info("indexing_auto_enqueued", document_id=document_id)
+    except Exception as e:
+        logger.exception("indexing_auto_enqueue_failed", document_id=document_id, error=str(e))
 
 
 def run_indexing(document_id: str, **kwargs) -> None:
