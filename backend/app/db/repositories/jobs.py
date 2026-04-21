@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import JobLog
@@ -55,6 +55,24 @@ class JobRepository:
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def count_jobs(
+        self,
+        *,
+        status: str | None = None,
+        queue_name: str | None = None,
+        document_id: uuid.UUID | None = None,
+    ) -> int:
+        """Count job logs matching filters."""
+        stmt = select(func.count(JobLog.id))
+        if status is not None:
+            stmt = stmt.where(JobLog.status == status)
+        if queue_name is not None:
+            stmt = stmt.where(JobLog.queue_name == queue_name)
+        if document_id is not None:
+            stmt = stmt.where(JobLog.document_id == document_id)
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
 
     async def list_jobs(
         self,

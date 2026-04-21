@@ -53,7 +53,7 @@ async def list_jobs(
     service: JobService = Depends(_get_service),
 ) -> JobListResponse:
     """List jobs with optional filters."""
-    jobs = await service.list_jobs(
+    jobs, total = await service.list_jobs(
         status=status_filter,
         queue_name=queue_name,
         document_id=document_id,
@@ -61,7 +61,7 @@ async def list_jobs(
         limit=limit,
     )
     items = [JobResponse.model_validate(j) for j in jobs]
-    return JobListResponse(items=items, total=len(items))
+    return JobListResponse(items=items, total=total)
 
 
 @router.get("/{job_id}", response_model=JobResponse)

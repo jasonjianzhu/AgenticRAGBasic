@@ -1,7 +1,6 @@
 """Shared test fixtures for all test types."""
 from __future__ import annotations
 
-import asyncio
 from typing import AsyncGenerator
 
 import pytest
@@ -12,14 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import Settings
 from app.db.base import Base
 from app.main import create_app
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create a session-scoped event loop for async tests."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(scope="session")

@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Document
@@ -73,6 +73,21 @@ class DocumentRepository:
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def count_documents(
+        self,
+        *,
+        knowledge_base_id: uuid.UUID | None = None,
+        status: str | None = None,
+    ) -> int:
+        """Count documents matching filters, excluding soft-deleted."""
+        stmt = select(func.count(Document.id)).where(Document.is_deleted == False)  # noqa: E712
+        if knowledge_base_id is not None:
+            stmt = stmt.where(Document.knowledge_base_id == knowledge_base_id)
+        if status is not None:
+            stmt = stmt.where(Document.status == status)
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
 
     async def list_documents(
         self,

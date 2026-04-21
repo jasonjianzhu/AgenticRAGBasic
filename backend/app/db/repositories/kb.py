@@ -40,6 +40,12 @@ class KBRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def count_all(self) -> int:
+        """Count total knowledge bases."""
+        stmt = select(func.count(KnowledgeBase.id))
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
+
     async def list_all(self, *, skip: int = 0, limit: int = 100) -> Sequence[KnowledgeBase]:
         """List all knowledge bases with pagination."""
         stmt = (

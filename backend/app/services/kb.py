@@ -62,10 +62,11 @@ class KBService:
         stats = await self.repo.get_statistics(kb_id)
         return kb, stats
 
-    async def list_kbs(self, *, skip: int = 0, limit: int = 100) -> list[KnowledgeBase]:
-        """List all knowledge bases."""
+    async def list_kbs(self, *, skip: int = 0, limit: int = 100) -> tuple[list[KnowledgeBase], int]:
+        """List all knowledge bases. Returns (items, total_count)."""
         kbs = await self.repo.list_all(skip=skip, limit=limit)
-        return list(kbs)
+        total = await self.repo.count_all()
+        return list(kbs), total
 
     async def update_kb(
         self,

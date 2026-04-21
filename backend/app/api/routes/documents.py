@@ -94,8 +94,12 @@ async def list_documents(
         skip=skip,
         limit=limit,
     )
+    total = await repo.count_documents(
+        knowledge_base_id=knowledge_base_id,
+        status=status_filter,
+    )
     items = [DocumentResponse.model_validate(d) for d in docs]
-    return DocumentListResponse(items=items, total=len(items))
+    return DocumentListResponse(items=items, total=total)
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)

@@ -95,8 +95,8 @@ class JobService:
         document_id: uuid.UUID | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> list[JobLog]:
-        """List jobs with optional filters."""
+    ) -> tuple[list[JobLog], int]:
+        """List jobs with optional filters. Returns (items, total_count)."""
         jobs = await self.repo.list_jobs(
             status=status,
             queue_name=queue_name,
@@ -104,7 +104,12 @@ class JobService:
             skip=skip,
             limit=limit,
         )
-        return list(jobs)
+        total = await self.repo.count_jobs(
+            status=status,
+            queue_name=queue_name,
+            document_id=document_id,
+        )
+        return list(jobs), total
 
     async def mark_started(self, job_id: uuid.UUID) -> JobLog:
         """Mark a job as started."""

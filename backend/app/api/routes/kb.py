@@ -49,9 +49,9 @@ async def list_kbs(
     service: KBService = Depends(_get_service),
 ) -> KBListResponse:
     """List all knowledge bases."""
-    kbs = await service.list_kbs(skip=skip, limit=limit)
+    kbs, total = await service.list_kbs(skip=skip, limit=limit)
     items = [KBResponse.model_validate(kb) for kb in kbs]
-    return KBListResponse(items=items, total=len(items))
+    return KBListResponse(items=items, total=total)
 
 
 @router.get("/{kb_id}", response_model=KBDetailResponse)
