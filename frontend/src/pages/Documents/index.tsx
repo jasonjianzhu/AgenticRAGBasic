@@ -397,10 +397,8 @@ const DocumentsPage: React.FC = () => {
           accept=".pdf"
           multiple={false}
           showUploadList={false}
-          customRequest={() => {}} 
-          beforeUpload={(file) => {
-            handleUpload(file as unknown as File);
-            return Upload.LIST_IGNORE;
+          customRequest={({ file }) => {
+            handleUpload(file as File);
           }}
           disabled={uploading || !uploadKB}
           style={{ maxWidth: 600 }}
