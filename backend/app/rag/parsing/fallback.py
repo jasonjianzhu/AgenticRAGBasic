@@ -18,8 +18,11 @@ logger = get_logger(__name__)
 
 def _extract_with_pypdfium2(file_path: str) -> ParsedDocument:
     """Synchronous text extraction using pypdfium2."""
+    from app.rag.parsing.base import ContentSegment
+
     pdf = pypdfium2.PdfDocument(file_path)
     pages: list[ParsedPage] = []
+    segments: list[ContentSegment] = []
     all_text_parts: list[str] = []
 
     try:
@@ -30,9 +33,12 @@ def _extract_with_pypdfium2(file_path: str) -> ParsedDocument:
             text_page.close()
             page.close()
 
-            pages.append(ParsedPage(page_number=i + 1, content=text))
+            page_num = i + 1
+            pages.append(ParsedPage(page_number=page_num, content=text))
             if text.strip():
                 all_text_parts.append(text)
+                # Each page's text is one segment
+                segments.append(ContentSegment(text=text, page_number=page_num))
     finally:
         pdf.close()
 
@@ -47,7 +53,8 @@ def _extract_with_pypdfium2(file_path: str) -> ParsedDocument:
     return ParsedDocument(
         content=content,
         pages=pages,
-        tables=[],  # No table detection in fallback
+        tables=[],
+        segments=segments,
         metadata=metadata,
     )
 

@@ -1,4 +1,4 @@
-"""Markdown header-based chunker with precise page attribution."""
+"""Markdown header-based chunker with precise page attribution from segments."""
 from __future__ import annotations
 
 import re
@@ -6,9 +6,8 @@ import re
 import structlog
 
 from app.rag.chunking.base import BaseChunker, ChunkData
-from app.rag.chunking.docling_hybrid import _build_page_index, _find_pages_for_text
 from app.rag.chunking.utils import estimate_tokens
-from app.rag.parsing.base import ParsedDocument
+from app.rag.parsing.base import ContentSegment, ParsedDocument
 
 logger = structlog.get_logger(__name__)
 
@@ -27,34 +26,68 @@ class MarkdownHeaderChunker(BaseChunker):
 
     def chunk(self, parsed: ParsedDocument, **kwargs) -> list[ChunkData]:
         max_tokens = kwargs.get("max_tokens", self._max_tokens)
-        page_index = _build_page_index(parsed.pages)
-        sections = self._extract_sections(parsed.content)
+
+        if parsed.segments:
+            return self._chunk_from_segments(parsed.segments, max_tokens)
+        return self._chunk_from_content(parsed.content, max_tokens)
+
+    def _chunk_from_segments(self, segments: list[ContentSegment], max_tokens: int) -> list[ChunkData]:
+        """Split segments by headers, each section becomes a chunk with exact pages."""
         chunks: list[ChunkData] = []
+        header_stack: list[tuple[int, str]] = []
+        current_texts: list[str] = []
+        current_pages: list[int] = []
         ordinal = 0
 
-        for section_path, section_text in sections:
-            text = section_text.strip()
-            if not text:
-                continue
-            token_count = estimate_tokens(text)
+        def _path():
+            return " > ".join(t for _, t in header_stack) if header_stack else None
 
-            if token_count <= max_tokens:
-                ps, pe = _find_pages_for_text(text, page_index)
+        def _flush():
+            nonlocal ordinal
+            if not current_texts:
+                return
+            text = "\n\n".join(current_texts)
+            tokens = estimate_tokens(text)
+            if tokens <= max_tokens:
                 chunks.append(ChunkData(
                     content=text, ordinal=ordinal, chunk_type="text",
-                    section_path=section_path, token_count=token_count,
-                    page_start=ps, page_end=pe,
+                    section_path=_path(), token_count=tokens,
+                    page_start=min(current_pages) if current_pages else None,
+                    page_end=max(current_pages) if current_pages else None,
                 ))
                 ordinal += 1
             else:
-                sub = self._split_by_paragraphs(text, section_path, max_tokens, ordinal, page_index)
-                chunks.extend(sub)
-                ordinal += len(sub)
+                # Split large section by individual segments
+                for t, p in zip(current_texts, current_pages):
+                    chunks.append(ChunkData(
+                        content=t, ordinal=ordinal, chunk_type="text",
+                        section_path=_path(), token_count=estimate_tokens(t),
+                        page_start=p, page_end=p,
+                    ))
+                    ordinal += 1
 
-        logger.info("markdown_header_chunked", total_chunks=len(chunks), content_length=len(parsed.content))
+        for seg in segments:
+            text = seg.text.strip()
+            if not text:
+                continue
+            m = _HEADER_RE.match(text)
+            if m:
+                _flush()
+                current_texts = []
+                current_pages = []
+                level, title = len(m.group(1)), m.group(2).strip()
+                while header_stack and header_stack[-1][0] >= level:
+                    header_stack.pop()
+                header_stack.append((level, title))
+            current_texts.append(text)
+            current_pages.append(seg.page_number)
+
+        _flush()
+        logger.info("markdown_header_chunked", total_chunks=len(chunks))
         return chunks
 
-    def _extract_sections(self, content: str) -> list[tuple[str | None, str]]:
+    def _chunk_from_content(self, content: str, max_tokens: int) -> list[ChunkData]:
+        """Fallback when no segments available."""
         if not content.strip():
             return []
         lines = content.split("\n")
@@ -62,7 +95,7 @@ class MarkdownHeaderChunker(BaseChunker):
         header_stack: list[tuple[int, str]] = []
         current_lines: list[str] = []
 
-        def _path() -> str | None:
+        def _path():
             return " > ".join(t for _, t in header_stack) if header_stack else None
 
         for line in lines:
@@ -80,40 +113,47 @@ class MarkdownHeaderChunker(BaseChunker):
                 current_lines.append(line)
         if current_lines:
             sections.append((_path(), "\n".join(current_lines)))
-        return sections
 
-    def _split_by_paragraphs(self, text, section_path, max_tokens, start_ordinal, page_index):
-        paragraphs = re.split(r"\n\s*\n", text)
         chunks: list[ChunkData] = []
-        current_parts: list[str] = []
-        current_tokens = 0
-        ordinal = start_ordinal
-
-        for para in paragraphs:
-            para = para.strip()
-            if not para:
+        ordinal = 0
+        for section_path, section_text in sections:
+            text = section_text.strip()
+            if not text:
                 continue
-            pt = estimate_tokens(para)
-            if current_tokens + pt > max_tokens and current_parts:
-                chunk_text = "\n\n".join(current_parts)
-                ps, pe = _find_pages_for_text(chunk_text, page_index)
+            tokens = estimate_tokens(text)
+            if tokens <= max_tokens:
                 chunks.append(ChunkData(
-                    content=chunk_text, ordinal=ordinal, chunk_type="text",
-                    section_path=section_path, token_count=estimate_tokens(chunk_text),
-                    page_start=ps, page_end=pe,
+                    content=text, ordinal=ordinal, chunk_type="text",
+                    section_path=section_path, token_count=tokens,
                 ))
                 ordinal += 1
-                current_parts = []
-                current_tokens = 0
-            current_parts.append(para)
-            current_tokens += pt
+            else:
+                # Split large section by paragraphs
+                parts: list[str] = []
+                part_tokens = 0
+                for para in re.split(r"\n\s*\n", text):
+                    para = para.strip()
+                    if not para:
+                        continue
+                    pt = estimate_tokens(para)
+                    if part_tokens + pt > max_tokens and parts:
+                        chunk_text = "\n\n".join(parts)
+                        chunks.append(ChunkData(
+                            content=chunk_text, ordinal=ordinal, chunk_type="text",
+                            section_path=section_path, token_count=estimate_tokens(chunk_text),
+                        ))
+                        ordinal += 1
+                        parts = []
+                        part_tokens = 0
+                    parts.append(para)
+                    part_tokens += pt
+                if parts:
+                    chunk_text = "\n\n".join(parts)
+                    chunks.append(ChunkData(
+                        content=chunk_text, ordinal=ordinal, chunk_type="text",
+                        section_path=section_path, token_count=estimate_tokens(chunk_text),
+                    ))
+                    ordinal += 1
 
-        if current_parts:
-            chunk_text = "\n\n".join(current_parts)
-            ps, pe = _find_pages_for_text(chunk_text, page_index)
-            chunks.append(ChunkData(
-                content=chunk_text, ordinal=ordinal, chunk_type="text",
-                section_path=section_path, token_count=estimate_tokens(chunk_text),
-                page_start=ps, page_end=pe,
-            ))
+        logger.info("markdown_header_chunked", total_chunks=len(chunks))
         return chunks

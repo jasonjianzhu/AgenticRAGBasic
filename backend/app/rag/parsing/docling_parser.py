@@ -54,11 +54,9 @@ def _build_converter(profile: str):
 
 
 def _run_docling(file_path: str, profile: str) -> ParsedDocument:
-    """Synchronous helper that runs docling conversion.
+    """Synchronous helper that runs docling conversion."""
+    from app.rag.parsing.base import ContentSegment
 
-    Designed to be called inside ``asyncio.to_thread`` so the event loop
-    is not blocked by the CPU-heavy parsing.
-    """
     converter = _build_converter(profile)
     result = converter.convert(file_path)
     doc = result.document
@@ -66,48 +64,46 @@ def _run_docling(file_path: str, profile: str) -> ParsedDocument:
     # Full markdown content
     content = doc.export_to_markdown()
 
-    # Per-page content
+    # Build segments and per-page text from body items with provenance
+    segments: list[ContentSegment] = []
+    page_texts: dict[int, list[str]] = {}
+
+    for item, _level in doc.iterate_items():
+        if not (hasattr(item, "prov") and item.prov):
+            continue
+
+        # Extract markdown text from item
+        text = ""
+        if hasattr(item, "export_to_markdown"):
+            try:
+                text = item.export_to_markdown()
+            except Exception:
+                pass
+        if not text and hasattr(item, "text"):
+            text = item.text or ""
+        if not text:
+            continue
+
+        # Use first provenance for page number
+        page_no = item.prov[0].page_no
+        segments.append(ContentSegment(text=text, page_number=page_no))
+        page_texts.setdefault(page_no, []).append(text)
+
+    # Build pages
     pages: list[ParsedPage] = []
     for page in result.pages:
-        page_no = page.page_no
-        # Export full doc text – we'll attribute per-page via body items
-        pages.append(ParsedPage(page_number=page_no, content=""))
-
-    # Build per-page text from body items that carry provenance
-    page_texts: dict[int, list[str]] = {}
-    for item, _level in doc.iterate_items():
-        if hasattr(item, "prov") and item.prov:
-            # Extract text content from the item
-            text = ""
-            if hasattr(item, "export_to_markdown"):
-                try:
-                    text = item.export_to_markdown()
-                except Exception:
-                    pass
-            if not text and hasattr(item, "text"):
-                text = item.text or ""
-            if not text:
-                continue
-
-            for prov in item.prov:
-                pn = prov.page_no
-                page_texts.setdefault(pn, []).append(text)
-
-    # Assign collected text to pages
-    for p in pages:
-        if p.page_number in page_texts:
-            p.content = "\n\n".join(page_texts[p.page_number])
+        pn = page.page_no
+        page_content = "\n\n".join(page_texts.get(pn, []))
+        pages.append(ParsedPage(page_number=pn, content=page_content))
 
     # Tables
     tables: list[ParsedTable] = []
     for table_item in doc.tables.values() if hasattr(doc.tables, "values") else doc.tables:
-        # Get table item – doc.tables is a dict-like mapping
         tbl = table_item if not isinstance(table_item, tuple) else table_item[1]
         md = tbl.export_to_markdown() if hasattr(tbl, "export_to_markdown") else str(tbl)
         page_no = tbl.prov[0].page_no if tbl.prov else 0
         caption_text = None
         if tbl.captions:
-            # captions are RefItems; resolve text if possible
             caption_parts = []
             for cap_ref in tbl.captions:
                 if hasattr(cap_ref, "text"):
@@ -128,6 +124,7 @@ def _run_docling(file_path: str, profile: str) -> ParsedDocument:
         content=content,
         pages=pages,
         tables=tables,
+        segments=segments,
         metadata=metadata,
     )
 

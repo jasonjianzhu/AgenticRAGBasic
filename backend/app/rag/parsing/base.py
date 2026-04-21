@@ -23,17 +23,36 @@ class ParsedTable:
 
 
 @dataclass
+class ContentSegment:
+    """A text segment with its source page number.
+
+    This is the key data structure for precise page attribution.
+    Each segment is a piece of text (paragraph, heading, etc.)
+    that comes from a known page in the source document.
+    """
+
+    text: str
+    page_number: int
+
+
+@dataclass
 class ParsedDocument:
     """Result of parsing a document.
 
-    Holds the full extracted text (in markdown format), per-page content,
-    extracted tables, and parser metadata.
+    Attributes:
+        content: Full extracted text (markdown format, for backward compat).
+        pages: Per-page content.
+        tables: Extracted tables with page numbers.
+        segments: Ordered list of text segments with page attribution.
+                  This is the primary data source for chunking.
+        metadata: Parser metadata.
     """
 
-    content: str  # Full extracted text (markdown format)
-    pages: list[ParsedPage]  # Per-page content
-    tables: list[ParsedTable]  # Extracted tables
-    metadata: dict = field(default_factory=dict)  # Parser metadata
+    content: str
+    pages: list[ParsedPage]
+    tables: list[ParsedTable]
+    segments: list[ContentSegment] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """Serialize to a plain dictionary suitable for JSON encoding."""
@@ -44,12 +63,12 @@ class ParsedDocument:
                 for p in self.pages
             ],
             "tables": [
-                {
-                    "content": t.content,
-                    "page_number": t.page_number,
-                    "caption": t.caption,
-                }
+                {"content": t.content, "page_number": t.page_number, "caption": t.caption}
                 for t in self.tables
+            ],
+            "segments": [
+                {"text": s.text, "page_number": s.page_number}
+                for s in self.segments
             ],
             "metadata": self.metadata,
         }
@@ -71,6 +90,10 @@ class ParsedDocument:
                 )
                 for t in data.get("tables", [])
             ],
+            segments=[
+                ContentSegment(text=s["text"], page_number=s["page_number"])
+                for s in data.get("segments", [])
+            ],
             metadata=data.get("metadata", {}),
         )
 
@@ -80,15 +103,7 @@ class DocumentParser(abc.ABC):
 
     @abc.abstractmethod
     async def parse(self, file_path: str, profile: str = "balanced") -> ParsedDocument:
-        """Parse a document file and return structured content.
-
-        Args:
-            file_path: Path to the document file on disk.
-            profile: Parsing profile (fast, balanced, accurate).
-
-        Returns:
-            A ParsedDocument with extracted content.
-        """
+        """Parse a document file and return structured content."""
 
     @property
     @abc.abstractmethod
