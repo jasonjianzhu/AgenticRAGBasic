@@ -82,19 +82,32 @@ class TEIEmbeddingProvider(EmbeddingProvider):
             return response.json()
 
     async def _request_sparse(self, texts: list[str]) -> list[dict[int, float]]:
-        """Request sparse embeddings from TEI."""
+        """Request sparse embeddings from TEI.
+
+        Falls back to empty sparse vectors if the endpoint is not available
+        (e.g., model doesn't support sparse output).
+        """
         url = f"{self._base_url}/embed_sparse"
         payload: dict[str, Any] = {"inputs": texts}
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(url, json=payload, headers=self._headers())
-            response.raise_for_status()
-            # TEI returns list of list of {index, value} objects
-            raw = response.json()
-            results: list[dict[int, float]] = []
-            for item in raw:
-                sparse: dict[int, float] = {}
-                for entry in item:
-                    sparse[entry["index"]] = entry["value"]
-                results.append(sparse)
-            return results
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(url, json=payload, headers=self._headers())
+                response.raise_for_status()
+                # TEI returns list of list of {index, value} objects
+                raw = response.json()
+                results: list[dict[int, float]] = []
+                for item in raw:
+                    sparse: dict[int, float] = {}
+                    for entry in item:
+                        sparse[entry["index"]] = entry["value"]
+                    results.append(sparse)
+                return results
+        except (httpx.HTTPStatusError, httpx.ConnectError) as e:
+            logger.warning(
+                "sparse_embedding_unavailable",
+                url=url,
+                error=str(e),
+            )
+            # Return empty sparse vectors as fallback
+            return [{} for _ in texts]

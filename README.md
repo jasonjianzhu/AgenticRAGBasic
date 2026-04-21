@@ -32,7 +32,15 @@ docker compose up -d
 
 这会启动 PostgreSQL、Redis、Qdrant 三个服务。
 
-### 3. 后端
+### 3. 启动 TEI Embedding 服务
+
+```bash
+text-embeddings-router --model-id ~/LocalLLMs/bge-m3 --port 8080
+```
+
+BGE-M3 同时输出 dense (1024维) + sparse 向量，供索引构建和检索调试使用。
+
+### 4. 后端
 
 ```bash
 # 创建虚拟环境
@@ -57,7 +65,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 python -m app.jobs.worker
 ```
 
-### 4. 前端
+### 5. 前端
 
 ```bash
 cd frontend
@@ -67,7 +75,7 @@ npm run dev
 
 访问 http://localhost:3000
 
-### 5. 运行测试
+### 6. 运行测试
 
 ```bash
 # 单元测试 (不需要外部服务)
