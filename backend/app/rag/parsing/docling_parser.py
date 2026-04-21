@@ -77,9 +77,20 @@ def _run_docling(file_path: str, profile: str) -> ParsedDocument:
     page_texts: dict[int, list[str]] = {}
     for item, _level in doc.iterate_items():
         if hasattr(item, "prov") and item.prov:
+            # Extract text content from the item
+            text = ""
+            if hasattr(item, "export_to_markdown"):
+                try:
+                    text = item.export_to_markdown()
+                except Exception:
+                    pass
+            if not text and hasattr(item, "text"):
+                text = item.text or ""
+            if not text:
+                continue
+
             for prov in item.prov:
                 pn = prov.page_no
-                text = item.export_to_markdown() if hasattr(item, "export_to_markdown") else str(item)
                 page_texts.setdefault(pn, []).append(text)
 
     # Assign collected text to pages
