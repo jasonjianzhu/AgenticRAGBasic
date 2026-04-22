@@ -160,7 +160,7 @@ const DocumentsPage: React.FC = () => {
     const poll = async () => {
       await fetchDocs();
     };
-    const timer = setInterval(poll, 2000);
+    const timer = setInterval(poll, 1500);
     return () => clearInterval(timer);
   }, [docs, fetchDocs]);
 
@@ -197,13 +197,14 @@ const DocumentsPage: React.FC = () => {
     }
     setUploading(true);
     try {
-      await api.uploadDocument(
+      const doc = await api.uploadDocument(
         file,
         uploadKB,
         uploadDocType || undefined,
         uploadProfile || undefined,
       );
-      message.success('文档上传成功');
+      message.success(`${doc.title} 上传成功，正在解析和索引...`);
+      // Start polling immediately
       fetchDocs();
     } catch (err: unknown) {
       const msg =
