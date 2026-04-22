@@ -90,12 +90,28 @@ def run_ingestion(document_id: str, **kwargs) -> None:
 
         redis_conn = Redis.from_url(settings.redis_url)
         indexing_queue = Queue(settings.rq_indexing_queue, connection=redis_conn)
-        indexing_queue.enqueue(
+        job = indexing_queue.enqueue(
             "app.knowledge.jobs.tasks.run_indexing",
             document_id=document_id,
             job_timeout=settings.rq_indexing_timeout,
         )
-        logger.info("indexing_auto_enqueued", document_id=document_id)
+        logger.info("indexing_auto_enqueued", document_id=document_id, rq_job_id=job.id)
+
+        # Create JobLog for the indexing task
+        from app.common.db.session_sync import sync_session_scope
+        from app.common.db.models import JobLog
+        with sync_session_scope() as session:
+            job_log = JobLog(
+                rq_job_id=job.id,
+                queue_name=settings.rq_indexing_queue,
+                job_type="index",
+                status="queued",
+                document_id=doc_uuid,
+                attempts=0,
+                payload={"document_id": document_id},
+            )
+            session.add(job_log)
+            session.flush()
     except Exception as e:
         logger.exception("indexing_auto_enqueue_failed", document_id=document_id, error=str(e))
 
