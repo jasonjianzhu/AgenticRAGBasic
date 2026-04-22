@@ -153,7 +153,7 @@ const DocumentsPage: React.FC = () => {
   // Auto-refresh: poll docs + job info when there are active tasks
   useEffect(() => {
     const hasActive = docs.some((d) =>
-      ['uploaded', 'parsing', 'indexing'].includes(d.status),
+      ['uploaded', 'parsing', 'chunked', 'indexing'].includes(d.status),
     );
     if (!hasActive) return;
 
@@ -310,7 +310,7 @@ const DocumentsPage: React.FC = () => {
       width: 140,
       render: (s: string, record: DocumentResponse) => {
         const jobInfo = jobInfoMap[record.id];
-        const isActive = ['uploaded', 'parsing', 'indexing'].includes(s);
+        const isActive = ['uploaded', 'parsing', 'chunked', 'indexing'].includes(s);
         const isFailed = s === 'failed';
 
         return (
