@@ -1,0 +1,29 @@
+# 第二阶段 Backlog
+
+开发过程中发现的优化项和遗留问题。
+
+---
+
+## 待优化
+
+### 1. Query Rewrite 同义扩充增加召回
+
+**现状**：当前 query rewrite 只做了改写和关键词提取，改写后的 query 用于单次 embedding 检索。
+
+**改进**：
+- 在 rewrite 阶段让 LLM 输出同义词/近义词扩展（如"过温" → "温度过高"、"高温告警"、"overtemperature"）
+- 用扩展后的多个 query 分别做 embedding 检索，合并结果
+- 或者将扩展关键词拼接到 rewritten_query 中，利用 sparse retrieval 的词汇匹配能力增加召回
+- 评估扩充后对 Hit@K 和 MRR 的影响
+
+### 2. `rag_context_window_tokens` 未使用
+
+**现状**：配置项已定义但 context packing 时没有做 token 截断。
+
+**改进**：在 `_pack_context()` 中按 token 预算截断，避免超出 LLM 上下文窗口。
+
+### 3. `previous_context` API 未暴露
+
+**现状**：`RAGService.search()` 支持 `previous_context` 参数，但 HTTP API 没有暴露。Phase 2 前端是单轮问答不需要，Phase 3 Agent 接入时需要。
+
+**改进**：Phase 3 时在 API 加可选字段，或 Agent 直接调 Python 接口。

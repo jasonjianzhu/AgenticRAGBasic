@@ -160,3 +160,13 @@ class JobLog(TimestampMixin, Base):
     payload: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
 
     document: Mapped[Document | None] = relationship(back_populates="job_logs")
+
+
+class RAGConfig(TimestampMixin, Base):
+    """RAG runtime configuration (key-value store)."""
+
+    __tablename__ = "rag_configs"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    value: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)

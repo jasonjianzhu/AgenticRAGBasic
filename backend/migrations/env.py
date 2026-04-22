@@ -13,6 +13,7 @@ from app.common.db.models import (  # noqa: F401 - ensure models are registered
     DocumentVersion,
     JobLog,
     KnowledgeBase,
+    RAGConfig,
 )
 
 config = context.config

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from app.knowledge.api.routes.health import router as health_router
 from app.rag.api.routes.rag import router as rag_router
+from app.rag.api.routes.config import router as config_router
 from app.main import create_base_app
 
 app = create_base_app(
@@ -16,3 +17,4 @@ app = create_base_app(
 
 app.include_router(health_router)
 app.include_router(rag_router)
+app.include_router(config_router)
