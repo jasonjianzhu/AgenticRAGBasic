@@ -92,7 +92,7 @@ source .venv/bin/activate
 pip install -e "backend[dev]"
 
 # 前端
-cd frontend && npm install
+cd ../frontend && npm install
 ```
 
 ### 3. 配置
@@ -129,8 +129,8 @@ docker compose up -d
 # 3. RAG 服务
 ../.venv/bin/uvicorn app.main_rag:app --port 8001
 
-# 4. 前端（另一个终端，在项目根目录）
-cd frontend && npm run dev
+# 4. 前端（另一个终端，在 backend/ 下）
+cd ../frontend && npm run dev
 ```
 
 访问 http://localhost:3000/chat
@@ -151,8 +151,8 @@ docker compose --profile knowledge up -d
 # 4. Worker（另一个终端，在 backend/ 下）
 ../.venv/bin/python -m app.knowledge.jobs.worker
 
-# 5. 前端（另一个终端，在项目根目录）
-cd frontend && npm run dev
+# 5. 前端（另一个终端，在 backend/ 下）
+cd ../frontend && npm run dev
 ```
 
 访问 http://localhost:3000/kb
@@ -176,8 +176,8 @@ docker compose --profile all up -d
 # 5. 终端3：Worker（在 backend/ 下）
 ../.venv/bin/python -m app.knowledge.jobs.worker
 
-# 6. 终端4：前端（在项目根目录）
-cd frontend && npm run dev
+# 6. 终端4：前端（在 backend/ 下）
+cd ../frontend && npm run dev
 ```
 
 ## API 接口
