@@ -27,3 +27,21 @@
 **现状**：`RAGService.search()` 支持 `previous_context` 参数，但 HTTP API 没有暴露。Phase 2 前端是单轮问答不需要，Phase 3 Agent 接入时需要。
 
 **改进**：Phase 3 时在 API 加可选字段，或 Agent 直接调 Python 接口。
+
+### 4. RAG 服务单元测试
+
+**现状**：RAG 服务核心逻辑（query 处理、RRF 融合、引用拼接、拒答策略）没有单元测试。
+
+**改进**：补充 `tests/unit/test_rag_service.py`、`test_query_normalizer.py`、`test_query_rewriter.py`、`test_context_extractor.py`。
+
+### 5. System Prompt 硬编码
+
+**现状**：答案生成的 system prompt 写在 `RAGService._build_answer_messages()` 里，不方便调整。
+
+**改进**：抽到 `app/rag/generation/prompts.py`，支持配置化或模板化。
+
+### 6. Docker Compose 缺少 Langfuse
+
+**现状**：Langfuse 服务未加入 docker-compose.yml。
+
+**改进**：添加 Langfuse 服务配置，或文档说明外部部署方式。
