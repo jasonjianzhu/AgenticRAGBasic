@@ -105,6 +105,9 @@ const DocumentsPage: React.FC = () => {
   const [chunks, setChunks] = useState<ChunkResponse[]>([]);
   const [chunkTotal, setChunkTotal] = useState(0);
   const [chunkDocTitle, setChunkDocTitle] = useState('');
+  const [chunkDocId, setChunkDocId] = useState('');
+  const [chunkPage, setChunkPage] = useState(1);
+  const chunkPageSize = 20;
 
   // PDF preview
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
@@ -256,8 +259,24 @@ const DocumentsPage: React.FC = () => {
     setChunkDocTitle(doc.title);
     setChunkModalOpen(true);
     setChunkLoading(true);
+    setChunkDocId(doc.id);
+    setChunkPage(1);
     try {
-      const data = await api.getDocumentChunks(doc.id, 0, 100);
+      const data = await api.getDocumentChunks(doc.id, 0, chunkPageSize);
+      setChunks(data.items);
+      setChunkTotal(data.total);
+    } catch {
+      message.error('获取 Chunk 列表失败');
+    } finally {
+      setChunkLoading(false);
+    }
+  };
+
+  const handleChunkPageChange = async (page: number) => {
+    setChunkPage(page);
+    setChunkLoading(true);
+    try {
+      const data = await api.getDocumentChunks(chunkDocId, (page - 1) * chunkPageSize, chunkPageSize);
       setChunks(data.items);
       setChunkTotal(data.total);
     } catch {
@@ -545,7 +564,13 @@ const DocumentsPage: React.FC = () => {
           columns={chunkColumns}
           dataSource={chunks}
           loading={chunkLoading}
-          pagination={{ pageSize: 10, total: chunkTotal, showSizeChanger: false }}
+          pagination={{
+            current: chunkPage,
+            pageSize: chunkPageSize,
+            total: chunkTotal,
+            showSizeChanger: false,
+            onChange: handleChunkPageChange,
+          }}
           size="small"
           scroll={{ x: 800 }}
         />
