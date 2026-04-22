@@ -42,8 +42,11 @@ class Settings(BaseSettings):
     tei_base_url: str = Field(default="http://127.0.0.1:8080", alias="TEI_BASE_URL")
     tei_api_key: str | None = Field(default=None, alias="TEI_API_KEY")
     embedding_model_name: str = Field(default="BAAI/bge-m3", alias="EMBEDDING_MODEL_NAME")
+    embedding_model_path: str = Field(default="", alias="EMBEDDING_MODEL_PATH")
+    embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
     embedding_dimension: int = Field(default=1024, alias="EMBEDDING_DIMENSION")
     embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
+    embedding_use_fp16: bool = Field(default=True, alias="EMBEDDING_USE_FP16")
 
     # --- RQ / Worker ---
     rq_ingestion_queue: str = Field(default="ingestion", alias="RQ_INGESTION_QUEUE")

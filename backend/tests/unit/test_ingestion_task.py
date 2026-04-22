@@ -408,7 +408,9 @@ class TestUploadEnqueuesJob:
         from app.knowledge.api.routes.documents import get_job_queue, get_storage
         from app.common.core.dependencies import get_db
         from app.knowledge.jobs.queue import InMemoryJobQueue
-        from app.main_knowledge import app as _test_app
+        from app.common.core.config import Settings
+        from app.main_knowledge import create_knowledge_app
+        _test_app = create_knowledge_app(settings=Settings(APP_ENV="testing"))
 
         engine = create_async_engine("sqlite+aiosqlite:///", echo=False)
         async with engine.begin() as conn:
@@ -474,7 +476,9 @@ class TestUploadEnqueuesJob:
         from app.knowledge.api.routes.documents import get_job_queue, get_storage
         from app.common.core.dependencies import get_db
         from app.knowledge.jobs.queue import InMemoryJobQueue
-        from app.main_knowledge import app as _test_app
+        from app.common.core.config import Settings
+        from app.main_knowledge import create_knowledge_app
+        _test_app = create_knowledge_app(settings=Settings(APP_ENV="testing"))
 
         engine = create_async_engine("sqlite+aiosqlite:///", echo=False)
         async with engine.begin() as conn:
@@ -546,7 +550,9 @@ class TestUploadEnqueuesJob:
         from app.knowledge.api.routes.documents import get_job_queue, get_storage
         from app.common.core.dependencies import get_db
         from app.knowledge.jobs.queue import InMemoryJobQueue
-        from app.main_knowledge import app as _test_app
+        from app.common.core.config import Settings
+        from app.main_knowledge import create_knowledge_app
+        _test_app = create_knowledge_app(settings=Settings(APP_ENV="testing"))
 
         engine = create_async_engine("sqlite+aiosqlite:///", echo=False)
         async with engine.begin() as conn:

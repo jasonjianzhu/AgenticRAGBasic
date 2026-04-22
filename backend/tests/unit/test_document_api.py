@@ -16,7 +16,9 @@ from app.knowledge.api.routes.documents import get_storage
 from app.common.core.dependencies import get_db
 from app.common.db.base import Base
 from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.main_knowledge import app as _test_app
+from app.common.core.config import Settings
+from app.main_knowledge import create_knowledge_app
+_test_app = create_knowledge_app(settings=Settings(APP_ENV="testing"))
 from app.common.storage.local import LocalStorage
 
 # Minimal valid PDF content recognized by filetype library

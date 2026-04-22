@@ -17,7 +17,9 @@ from app.common.db.base import Base
 from app.common.db.models import Document, JobLog, KnowledgeBase
 from app.common.db.repositories.jobs import JobRepository
 from app.knowledge.jobs.queue import InMemoryJobQueue
-from app.main_knowledge import app as _test_app
+from app.common.core.config import Settings
+from app.main_knowledge import create_knowledge_app
+_test_app = create_knowledge_app(settings=Settings(APP_ENV="testing"))
 
 
 @pytest_asyncio.fixture

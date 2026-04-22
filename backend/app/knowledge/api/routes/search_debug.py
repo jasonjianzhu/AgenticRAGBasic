@@ -24,14 +24,9 @@ router = APIRouter(prefix="/kb", tags=["search-debug"])
 
 def _get_embedding_provider(settings: Settings = Depends(get_settings)) -> EmbeddingProvider:
     """Dependency to get embedding provider."""
-    from app.common.rag.embedding.tei import TEIEmbeddingProvider
+    from app.common.rag.embedding import create_embedding_provider
 
-    return TEIEmbeddingProvider(
-        base_url=settings.tei_base_url,
-        api_key=settings.tei_api_key,
-        batch_size=settings.embedding_batch_size,
-        dim=settings.embedding_dimension,
-    )
+    return create_embedding_provider()
 
 
 def _get_vector_store(settings: Settings = Depends(get_settings)) -> VectorStore:

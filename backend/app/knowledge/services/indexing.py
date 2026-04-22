@@ -53,13 +53,8 @@ class IndexingService:
     @property
     def embedding_provider(self) -> EmbeddingProvider:
         if self._embedding_provider is None:
-            from app.common.rag.embedding.tei import TEIEmbeddingProvider
-            self._embedding_provider = TEIEmbeddingProvider(
-                base_url=self.settings.tei_base_url,
-                api_key=self.settings.tei_api_key,
-                batch_size=self.settings.embedding_batch_size,
-                dim=self.settings.embedding_dimension,
-            )
+            from app.common.rag.embedding import create_embedding_provider
+            self._embedding_provider = create_embedding_provider()
         return self._embedding_provider
 
     @property

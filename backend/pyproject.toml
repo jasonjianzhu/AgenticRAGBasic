@@ -25,6 +25,8 @@ dependencies = [
     "structlog>=24.1.0,<25.0",
     "aiofiles>=24.1.0,<26.0",
     "filetype>=1.2.0,<2.0",
+    "FlagEmbedding>=1.2.0,<2.0",
+    "transformers>=4.41.0,<4.50.0",
 ]
 
 [project.optional-dependencies]

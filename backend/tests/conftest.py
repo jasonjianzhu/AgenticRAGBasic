@@ -53,7 +53,8 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def client(test_settings) -> AsyncGenerator[AsyncClient, None]:
     """Provide an async HTTP test client using the knowledge service app."""
-    from app.main_knowledge import app
-    transport = ASGITransport(app=app)
+    from app.main_knowledge import create_knowledge_app
+    test_app = create_knowledge_app()
+    transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
