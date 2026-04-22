@@ -107,6 +107,8 @@ cp backend/.env.example backend/.env
 
 ### 4. 数据库迁移
 
+先确保 PG 已启动（任意场景的 docker compose up 之后），再执行：
+
 ```bash
 cd backend
 alembic upgrade head
@@ -117,13 +119,16 @@ alembic upgrade head
 ### 场景 A：只跑 RAG 问答（知识库已有数据）
 
 ```bash
-# 基础设施（PG + Qdrant）
+# 1. 基础设施（PG + Qdrant）
 cd backend && docker compose up -d
 
-# RAG 服务
+# 2. 数据库迁移（首次或重建数据库后）
+.venv/bin/alembic upgrade head
+
+# 3. RAG 服务
 .venv/bin/uvicorn app.main_rag:app --port 8001
 
-# 前端
+# 4. 前端
 cd frontend && npm run dev
 ```
 
@@ -132,16 +137,19 @@ cd frontend && npm run dev
 ### 场景 B：知识库管理（上传/解析/索引）
 
 ```bash
-# 基础设施（PG + Qdrant + Redis）
+# 1. 基础设施（PG + Qdrant + Redis）
 cd backend && docker compose --profile knowledge up -d
 
-# 知识库服务
+# 2. 数据库迁移（首次或重建数据库后）
+.venv/bin/alembic upgrade head
+
+# 3. 知识库服务
 .venv/bin/uvicorn app.main_knowledge:app --port 8000
 
-# Worker（处理解析和索引任务）
+# 4. Worker（处理解析和索引任务）
 .venv/bin/python -m app.knowledge.jobs.worker
 
-# 前端
+# 5. 前端
 cd frontend && npm run dev
 ```
 
@@ -150,19 +158,22 @@ cd frontend && npm run dev
 ### 场景 C：全部功能
 
 ```bash
-# 基础设施
+# 1. 基础设施
 cd backend && docker compose --profile all up -d
 
-# 终端1：知识库服务
+# 2. 数据库迁移（首次或重建数据库后）
+.venv/bin/alembic upgrade head
+
+# 3. 终端1：知识库服务
 .venv/bin/uvicorn app.main_knowledge:app --port 8000
 
-# 终端2：RAG 服务
+# 4. 终端2：RAG 服务
 .venv/bin/uvicorn app.main_rag:app --port 8001
 
-# 终端3：Worker
+# 5. 终端3：Worker
 .venv/bin/python -m app.knowledge.jobs.worker
 
-# 终端4：前端
+# 6. 终端4：前端
 cd frontend && npm run dev
 ```
 
