@@ -235,9 +235,17 @@ async def delete_document(
     await session.execute(delete(Document).where(Document.id == doc_id))
     await session.flush()
 
-    # Best-effort local file cleanup
+    # Best-effort local file cleanup — delete the entire doc directory
     try:
-        await storage.delete(storage_path)
+        import shutil
+        from pathlib import Path
+        from app.common.core.config import get_settings
+
+        settings = get_settings()
+        # Upload dir: {kb_id}/{doc_id}/
+        upload_doc_dir = Path(str(settings.upload_dir)) / str(kb_id) / str(doc_id)
+        if upload_doc_dir.exists():
+            shutil.rmtree(upload_doc_dir)
     except Exception:
         import structlog
         structlog.get_logger(__name__).warning(
