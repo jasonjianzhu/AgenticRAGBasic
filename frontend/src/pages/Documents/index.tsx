@@ -11,6 +11,8 @@ import {
   message,
   Typography,
   Spin,
+  Progress,
+  Tooltip,
 } from 'antd';
 import {
   UploadOutlined,
@@ -110,6 +112,8 @@ const DocumentsPage: React.FC = () => {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
   const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
 
+  // Job info for progress/error display
+  const [jobInfoMap, setJobInfoMap] = useState<Record<string, { progress: number; error_message: string | null }>>({});
   const fetchKBs = useCallback(async () => {
     try {
       const data = await api.listKBs();
@@ -143,6 +147,34 @@ const DocumentsPage: React.FC = () => {
   useEffect(() => {
     fetchDocs();
   }, [fetchDocs]);
+
+  // Auto-refresh when there are active (parsing/indexing) documents
+  useEffect(() => {
+    const hasActive = docs.some((d) => ['parsing', 'indexing', 'uploaded'].includes(d.status));
+    if (!hasActive) return;
+    const timer = setInterval(fetchDocs, 3000);
+    return () => clearInterval(timer);
+  }, [docs, fetchDocs]);
+
+  // Fetch job info for documents with job_id (progress + error)
+  useEffect(() => {
+    const docsWithJobs = docs.filter((d) => d.job_id);
+    if (docsWithJobs.length === 0) return;
+
+    const fetchJobInfos = async () => {
+      const newMap: Record<string, { progress: number; error_message: string | null }> = {};
+      for (const doc of docsWithJobs) {
+        try {
+          const job = await api.getJob(doc.job_id!);
+          newMap[doc.id] = { progress: (job as any).progress ?? 0, error_message: job.error_message };
+        } catch {
+          // skip
+        }
+      }
+      setJobInfoMap(newMap);
+    };
+    fetchJobInfos();
+  }, [docs]);
 
   const handleUpload = async (file: File) => {
     if (!uploadKB) {
@@ -244,12 +276,35 @@ const DocumentsPage: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
-      render: (s: string) => (
-        <Tag color={statusColorMap[s] || 'default'}>
-          {statusLabelMap[s] || s}
-        </Tag>
-      ),
+      width: 140,
+      render: (s: string, record: DocumentResponse) => {
+        const jobInfo = jobInfoMap[record.id];
+        const isActive = ['parsing', 'indexing'].includes(s);
+        const isFailed = s === 'failed';
+
+        return (
+          <div>
+            <Tag color={statusColorMap[s] || 'default'}>
+              {statusLabelMap[s] || s}
+            </Tag>
+            {isActive && jobInfo && jobInfo.progress > 0 && (
+              <Progress
+                percent={jobInfo.progress}
+                size="small"
+                style={{ width: 80, marginLeft: 4 }}
+                strokeColor={s === 'parsing' ? '#fa8c16' : '#722ed1'}
+              />
+            )}
+            {isFailed && jobInfo?.error_message && (
+              <Tooltip title={jobInfo.error_message} overlayStyle={{ maxWidth: 500 }}>
+                <Text type="danger" style={{ fontSize: 11, cursor: 'pointer', marginLeft: 4 }}>
+                  查看错误
+                </Text>
+              </Tooltip>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '文档类型',
