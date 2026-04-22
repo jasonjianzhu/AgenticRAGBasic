@@ -4,6 +4,26 @@
 
 ---
 
+## 已修复的问题（联调期间）
+
+| 问题 | 修复 |
+|------|------|
+| ROOT_DIR 路径错误（拆分后多了 common/ 层） | parents[2] → parents[3] |
+| .env 读不到导致 embedding model_path 为空 | 同上 |
+| indexing 自动入队时没创建 JobLog | 入队后同步创建 JobLog 记录 |
+| 文档删除为软删除，唯一约束导致无法重传 | 改为硬删除 + CASCADE |
+| 删除后本地文件残留（只删文件不删目录） | 改为 rmtree 删整个 doc_id 目录 |
+| chunk 预览 total 返回当前页数量而非总数 | 加 COUNT 查询（Backlog #11） |
+| chunk 预览只加载前 100 条不能翻页 | 分页加载，每页 20 条 |
+| chunked 状态没有 Spin 动画 | 加入中间状态列表 |
+| 进度条看不到（任务太快） | 改用 Spin 动画 + 1.5 秒轮询 |
+| Alembic 迁移缺失（progress + rag_configs） | 补充 002 迁移文件 |
+| README 启动顺序和路径错误 | 统一 backend/ 目录，修正 venv 和前端路径 |
+| FlagEmbedding 与 transformers 版本不兼容 | 锁定 transformers<4.50 |
+| 测试文件 create_app 引用失效 | 改用 create_knowledge_app(settings=testing) |
+
+---
+
 ## 待优化
 
 ### 1. Query Rewrite 同义扩充增加召回
