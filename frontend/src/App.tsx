@@ -6,6 +6,7 @@ import AppLayout from '@/components/AppLayout';
 import KnowledgeBasePage from '@/pages/KnowledgeBase';
 import DocumentsPage from '@/pages/Documents';
 import SearchDebugPage from '@/pages/SearchDebug';
+import RAGChatPage from '@/pages/RAGChat';
 
 const App: React.FC = () => (
   <ConfigProvider locale={zhCN}>
@@ -15,6 +16,7 @@ const App: React.FC = () => (
           <Route path="/kb" element={<KnowledgeBasePage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/search" element={<SearchDebugPage />} />
+          <Route path="/chat" element={<RAGChatPage />} />
           <Route path="*" element={<Navigate to="/kb" replace />} />
         </Route>
       </Routes>

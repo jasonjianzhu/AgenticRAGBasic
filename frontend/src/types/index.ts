@@ -156,3 +156,74 @@ export interface SearchDebugResponse {
   results: SearchResultItem[];
   trace: SearchTrace;
 }
+
+// ─── RAG ───
+
+export interface RAGSearchFilters {
+  document_type?: string;
+  language?: string;
+  product_model?: string;
+}
+
+export interface RAGSearchRequest {
+  query: string;
+  kb_ids: string[];
+  top_k?: number;
+  filters?: RAGSearchFilters;
+  enable_rewrite?: boolean;
+}
+
+export interface RAGSearchResultItem {
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  content: string;
+  score: number;
+  rerank_score: number | null;
+  chunk_type: string;
+  page_start: number | null;
+  page_end: number | null;
+  section_path: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface RAGSearchTrace {
+  query_normalized: string;
+  query_rewritten: string | null;
+  retrieval_context: Record<string, string>;
+  dense_hits: number;
+  sparse_hits: number;
+  fused_total: number;
+  reranked: boolean;
+  returned: number;
+  latency_ms: Record<string, number>;
+}
+
+export interface RAGSearchResponse {
+  query: string;
+  rewritten_query: string | null;
+  results: RAGSearchResultItem[];
+  trace: RAGSearchTrace;
+}
+
+export interface RAGAnswerRequest {
+  query: string;
+  kb_ids: string[];
+  top_k?: number;
+  filters?: RAGSearchFilters;
+  enable_rewrite?: boolean;
+  enable_rerank?: boolean;
+}
+
+export interface SSEEvent {
+  event: 'trace' | 'citation' | 'token' | 'done' | 'error';
+  data: Record<string, unknown>;
+}
+
+export interface Citation {
+  index: number;
+  document_title: string;
+  page: number | null;
+  chunk_id: string;
+  snippet: string;
+}
