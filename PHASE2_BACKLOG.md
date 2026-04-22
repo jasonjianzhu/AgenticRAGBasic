@@ -45,3 +45,13 @@
 **现状**：Langfuse 服务未加入 docker-compose.yml。
 
 **改进**：添加 Langfuse 服务配置，或文档说明外部部署方式。
+
+### 7. 文档类型分类不准确
+
+**现状**：规则分类器把英文手册（如 "Jinko 5MWh liquid-cooled ESS User Manual"、"JKS-215KLAA User Manual"）错误识别为 `spec`。原因是 `spec` 关键词 `specification` 的优先级高于 `manual` 关键词 `user manual`，而这些文档内容中可能包含 specification 相关词汇。
+
+**改进**：
+- 调整分类优先级：`manual` 关键词匹配应优先于 `spec`
+- 增加英文手册关键词覆盖（"User Manual"、"Operation Manual" 等）
+- 考虑文件名权重高于内容匹配
+- 或引入 LLM 辅助分类替代纯规则
