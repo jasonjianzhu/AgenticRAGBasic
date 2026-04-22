@@ -57,9 +57,10 @@ class QueryRewriter:
         try:
             response = await self._llm.complete(messages, temperature=0.1, max_tokens=256)
             parsed = self._parse_response(response.content)
+            rewritten = parsed.get("rewritten_query", "").strip()
             result = RewriteResult(
                 original_query=query,
-                rewritten_query=parsed.get("rewritten_query", query),
+                rewritten_query=rewritten if rewritten else query,
                 keywords=parsed.get("keywords", []),
             )
             logger.info(
@@ -93,5 +94,6 @@ class QueryRewriter:
                 except json.JSONDecodeError:
                     pass
 
-        # Fallback: return content as rewritten_query
-        return {"rewritten_query": content, "keywords": []}
+        # Fallback: LLM didn't return valid JSON, discard the response
+        logger.warning("rewrite_parse_failed_using_original", content_preview=content[:100])
+        return {"rewritten_query": "", "keywords": []}

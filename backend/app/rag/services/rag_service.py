@@ -200,15 +200,12 @@ class RAGService:
         all_dense: list[SearchResult] = []
         all_sparse: list[SearchResult] = []
 
-        # Build filters
+        # Build filters — only use explicitly provided filters
+        # Context-derived filters are stored in trace for reference but not applied
+        # to avoid filtering out results when chunk metadata is incomplete
         payload_filters = {}
         if filters:
             payload_filters.update({k: v for k, v in filters.items() if v is not None})
-        # Add context-derived filters (context doesn't override explicit filters)
-        ctx_filters = ctx.to_filters()
-        for k, v in ctx_filters.items():
-            if k not in payload_filters:
-                payload_filters[k] = v
 
         candidate_limit = self._settings.reranker_top_n if self._reranker else top_k * 2
 
