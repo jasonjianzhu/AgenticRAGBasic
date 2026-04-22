@@ -75,3 +75,12 @@
 - 增加英文手册关键词覆盖（"User Manual"、"Operation Manual" 等）
 - 考虑文件名权重高于内容匹配
 - 或引入 LLM 辅助分类替代纯规则
+
+### 8. RAG 问答页缺少过滤条件
+
+**现状**：RAG 问答页只有知识库选择，没有 document_type / language / product_model 过滤条件。自动 filter 已关闭（chunk 元数据不完整会导致误过滤）。
+
+**改进**：
+- 先补全 chunk 元数据（language、product_model 在 ingestion 阶段填充）
+- 然后在 RAG 问答页加过滤条件选择器
+- 或重新启用自动 filter（基于 context 提取）
