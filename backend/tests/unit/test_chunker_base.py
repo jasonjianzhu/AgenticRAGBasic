@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.rag.chunking.base import BaseChunker, ChunkData
-from app.rag.parsing.base import ParsedDocument
+from app.knowledge.rag.chunking.base import BaseChunker, ChunkData
+from app.knowledge.rag.parsing.base import ParsedDocument
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ class TestBaseChunker:
 # ChunkerRegistry tests
 # ---------------------------------------------------------------------------
 
-from app.rag.chunking.registry import ChunkerRegistry
+from app.knowledge.rag.chunking.registry import ChunkerRegistry
 
 
 class TestChunkerRegistry:
@@ -160,7 +160,7 @@ class TestDefaultRegistry:
     """Tests for the default registry with all built-in chunkers."""
 
     def test_default_registry_has_all_chunkers(self):
-        from app.rag.chunking.registry import default_registry
+        from app.knowledge.rag.chunking.registry import default_registry
 
         names = default_registry.list_names()
         assert "docling_hybrid" in names
@@ -169,7 +169,7 @@ class TestDefaultRegistry:
         assert "table" in names
 
     def test_default_registry_get_each(self):
-        from app.rag.chunking.registry import default_registry
+        from app.knowledge.rag.chunking.registry import default_registry
 
         for name in ["docling_hybrid", "markdown_header", "recursive_token", "table"]:
             chunker = default_registry.get(name)

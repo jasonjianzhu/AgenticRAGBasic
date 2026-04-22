@@ -6,8 +6,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.db.base import Base
-from app.db.models import (  # noqa: F401 - ensure models are registered
+from app.common.db.base import Base
+from app.common.db.models import (  # noqa: F401 - ensure models are registered
     Chunk,
     Document,
     DocumentVersion,

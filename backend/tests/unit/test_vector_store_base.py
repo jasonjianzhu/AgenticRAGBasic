@@ -8,7 +8,7 @@ import math
 
 import pytest
 
-from app.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
+from app.common.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
 
 
 # --- In-memory implementation for testing ---
@@ -297,7 +297,7 @@ class TestQdrantVectorStoreStructure:
 
     def test_qdrant_store_instantiation(self):
         """QdrantVectorStore should be instantiable."""
-        from app.rag.vector_store.qdrant import QdrantVectorStore
+        from app.common.rag.vector_store.qdrant import QdrantVectorStore
         store = QdrantVectorStore(
             url="http://localhost:6333",
             collection_name="test_collection",
@@ -307,7 +307,7 @@ class TestQdrantVectorStoreStructure:
 
     def test_qdrant_store_with_api_key(self):
         """Should accept optional API key."""
-        from app.rag.vector_store.qdrant import QdrantVectorStore
+        from app.common.rag.vector_store.qdrant import QdrantVectorStore
         store = QdrantVectorStore(
             url="http://localhost:6333",
             collection_name="test",

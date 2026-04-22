@@ -13,14 +13,14 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.routes.search_debug import _get_embedding_provider, _get_vector_store
-from app.core.config import Settings, get_settings
-from app.core.dependencies import get_db
-from app.db.base import Base
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.main import create_app
-from app.rag.embedding.base import EmbeddingProvider, EmbeddingResult
-from app.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
+from app.knowledge.api.routes.search_debug import _get_embedding_provider, _get_vector_store
+from app.common.core.config import Settings, get_settings
+from app.common.core.dependencies import get_db
+from app.common.db.base import Base
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.main_knowledge import app as _test_app
+from app.common.rag.embedding.base import EmbeddingProvider, EmbeddingResult
+from app.common.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
 
 
 # --- In-memory implementations ---
@@ -122,7 +122,7 @@ async def api_client(
     in_memory_vector_store: InMemoryVectorStore,
 ) -> AsyncClient:
     """Provide an async HTTP test client with dependency overrides."""
-    app = create_app()
+    app = _test_app
 
     async def _override_get_db():
         try:

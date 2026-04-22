@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.rag.chunking.docling_hybrid import DoclingHybridChunker
-from app.rag.chunking.base import ChunkData
-from app.rag.chunking.utils import estimate_tokens
-from app.rag.parsing.base import ParsedDocument
+from app.knowledge.rag.chunking.docling_hybrid import DoclingHybridChunker
+from app.knowledge.rag.chunking.base import ChunkData
+from app.knowledge.rag.chunking.utils import estimate_tokens
+from app.knowledge.rag.parsing.base import ParsedDocument
 
 
 def _make_doc(content: str) -> ParsedDocument:
@@ -21,7 +21,7 @@ class TestDoclingHybridChunkerProperties:
         assert chunker.name == "docling_hybrid"
 
     def test_is_base_chunker(self):
-        from app.rag.chunking.base import BaseChunker
+        from app.knowledge.rag.chunking.base import BaseChunker
         assert isinstance(DoclingHybridChunker(), BaseChunker)
 
 

@@ -9,8 +9,8 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.db.repositories.chunks import ChunkRepository
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.common.db.repositories.chunks import ChunkRepository
 
 
 @pytest_asyncio.fixture

@@ -8,7 +8,7 @@ import random
 
 import pytest
 
-from app.rag.embedding.base import EmbeddingProvider, EmbeddingResult
+from app.common.rag.embedding.base import EmbeddingProvider, EmbeddingResult
 
 
 # --- In-memory implementation for testing ---
@@ -177,7 +177,7 @@ class TestTEIEmbeddingProviderStructure:
 
     def test_tei_provider_instantiation(self):
         """TEIEmbeddingProvider should be instantiable."""
-        from app.rag.embedding.tei import TEIEmbeddingProvider
+        from app.common.rag.embedding.tei import TEIEmbeddingProvider
         provider = TEIEmbeddingProvider(
             base_url="http://localhost:8080",
             batch_size=32,
@@ -188,7 +188,7 @@ class TestTEIEmbeddingProviderStructure:
 
     def test_tei_provider_with_api_key(self):
         """Should accept optional API key."""
-        from app.rag.embedding.tei import TEIEmbeddingProvider
+        from app.common.rag.embedding.tei import TEIEmbeddingProvider
         provider = TEIEmbeddingProvider(
             base_url="http://localhost:8080",
             api_key="test-key",
@@ -199,7 +199,7 @@ class TestTEIEmbeddingProviderStructure:
 
     def test_tei_provider_without_api_key(self):
         """Should work without API key."""
-        from app.rag.embedding.tei import TEIEmbeddingProvider
+        from app.common.rag.embedding.tei import TEIEmbeddingProvider
         provider = TEIEmbeddingProvider(base_url="http://localhost:8080")
         headers = provider._headers()
         assert "Authorization" not in headers

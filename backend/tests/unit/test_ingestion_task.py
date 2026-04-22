@@ -15,11 +15,11 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.db.base import Base
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.rag.parsing.base import ParsedDocument, ParsedPage, ParsedTable
-from app.services.ingestion_task import IngestionTaskService, IngestionTaskError
-from app.storage.local import LocalStorage
+from app.common.db.base import Base
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.knowledge.rag.parsing.base import ParsedDocument, ParsedPage, ParsedTable
+from app.knowledge.services.ingestion_task import IngestionTaskService, IngestionTaskError
+from app.common.storage.local import LocalStorage
 
 
 # --- Fake parsed document for mocking ---
@@ -105,7 +105,7 @@ def _setup_doc(session, storage, *, filename="test.pdf"):
 
 
 def _make_settings():
-    from app.core.config import Settings
+    from app.common.core.config import Settings
     return Settings(
         DATABASE_URL="sqlite+aiosqlite:///",
         DATABASE_URL_SYNC="sqlite:///",
@@ -405,10 +405,10 @@ class TestUploadEnqueuesJob:
     async def test_upload_returns_job_id(self, tmp_path):
         """Upload of a new document should return a job_id."""
         from httpx import ASGITransport, AsyncClient
-        from app.api.routes.documents import get_job_queue, get_storage
-        from app.core.dependencies import get_db
-        from app.jobs.queue import InMemoryJobQueue
-        from app.main import create_app
+        from app.knowledge.api.routes.documents import get_job_queue, get_storage
+        from app.common.core.dependencies import get_db
+        from app.knowledge.jobs.queue import InMemoryJobQueue
+        from app.main_knowledge import app as _test_app
 
         engine = create_async_engine("sqlite+aiosqlite:///", echo=False)
         async with engine.begin() as conn:
@@ -426,7 +426,7 @@ class TestUploadEnqueuesJob:
             await session.commit()
             kb_id = kb.id
 
-        app = create_app()
+        app = _test_app
         job_queue = InMemoryJobQueue()
 
         async def _override_db():
@@ -471,10 +471,10 @@ class TestUploadEnqueuesJob:
     async def test_duplicate_upload_no_job_id(self, tmp_path):
         """Duplicate upload should return job_id=None."""
         from httpx import ASGITransport, AsyncClient
-        from app.api.routes.documents import get_job_queue, get_storage
-        from app.core.dependencies import get_db
-        from app.jobs.queue import InMemoryJobQueue
-        from app.main import create_app
+        from app.knowledge.api.routes.documents import get_job_queue, get_storage
+        from app.common.core.dependencies import get_db
+        from app.knowledge.jobs.queue import InMemoryJobQueue
+        from app.main_knowledge import app as _test_app
 
         engine = create_async_engine("sqlite+aiosqlite:///", echo=False)
         async with engine.begin() as conn:
@@ -492,7 +492,7 @@ class TestUploadEnqueuesJob:
             await session.commit()
             kb_id = kb.id
 
-        app = create_app()
+        app = _test_app
         job_queue = InMemoryJobQueue()
 
         async def _override_db():
@@ -543,10 +543,10 @@ class TestUploadEnqueuesJob:
     async def test_upload_job_id_field_present_in_response(self, tmp_path):
         """DocumentResponse should always include job_id field."""
         from httpx import ASGITransport, AsyncClient
-        from app.api.routes.documents import get_job_queue, get_storage
-        from app.core.dependencies import get_db
-        from app.jobs.queue import InMemoryJobQueue
-        from app.main import create_app
+        from app.knowledge.api.routes.documents import get_job_queue, get_storage
+        from app.common.core.dependencies import get_db
+        from app.knowledge.jobs.queue import InMemoryJobQueue
+        from app.main_knowledge import app as _test_app
 
         engine = create_async_engine("sqlite+aiosqlite:///", echo=False)
         async with engine.begin() as conn:
@@ -564,7 +564,7 @@ class TestUploadEnqueuesJob:
             await session.commit()
             kb_id = kb.id
 
-        app = create_app()
+        app = _test_app
         job_queue = InMemoryJobQueue()
 
         async def _override_db():

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.rag.classification.rule_based import (
+from app.knowledge.rag.classification.rule_based import (
     DOC_TYPE_FAQ,
     DOC_TYPE_MANUAL,
     DOC_TYPE_QA,

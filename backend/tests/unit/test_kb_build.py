@@ -8,14 +8,14 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.routes.documents import get_storage
-from app.api.routes.kb import get_kb_job_queue
-from app.core.dependencies import get_db
-from app.db.base import Base
-from app.db.models import Document, KnowledgeBase
-from app.jobs.queue import InMemoryJobQueue
-from app.main import create_app
-from app.storage.local import LocalStorage
+from app.knowledge.api.routes.documents import get_storage
+from app.knowledge.api.routes.kb import get_kb_job_queue
+from app.common.core.dependencies import get_db
+from app.common.db.base import Base
+from app.common.db.models import Document, KnowledgeBase
+from app.knowledge.jobs.queue import InMemoryJobQueue
+from app.main_knowledge import app as _test_app
+from app.common.storage.local import LocalStorage
 
 
 @pytest_asyncio.fixture
@@ -39,7 +39,7 @@ async def build_session(build_engine):
 @pytest_asyncio.fixture
 async def build_client(build_engine, tmp_path):
     factory = async_sessionmaker(build_engine, class_=AsyncSession, expire_on_commit=False)
-    app = create_app()
+    app = _test_app
     job_queue = InMemoryJobQueue()
 
     async def _override_db():

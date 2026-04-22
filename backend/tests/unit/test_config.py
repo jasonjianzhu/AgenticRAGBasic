@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config import Settings
+from app.common.core.config import Settings
 
 
 @pytest.mark.unit

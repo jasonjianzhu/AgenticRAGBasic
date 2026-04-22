@@ -8,12 +8,12 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.routes.documents import get_storage
-from app.core.dependencies import get_db
-from app.db.base import Base
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.main import create_app
-from app.storage.local import LocalStorage
+from app.knowledge.api.routes.documents import get_storage
+from app.common.core.dependencies import get_db
+from app.common.db.base import Base
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.main_knowledge import app as _test_app
+from app.common.storage.local import LocalStorage
 
 
 @pytest_asyncio.fixture
@@ -37,7 +37,7 @@ async def cleanup_session(cleanup_engine):
 @pytest_asyncio.fixture
 async def cleanup_client(cleanup_engine, tmp_path):
     factory = async_sessionmaker(cleanup_engine, class_=AsyncSession, expire_on_commit=False)
-    app = create_app()
+    app = _test_app
 
     async def _override_db():
         async with factory() as session:

@@ -9,7 +9,7 @@ import uuid
 
 import pytest
 
-from app.jobs.queue import InMemoryJobQueue, JobQueue, RQJobQueue
+from app.knowledge.jobs.queue import InMemoryJobQueue, JobQueue, RQJobQueue
 
 
 @pytest.mark.unit

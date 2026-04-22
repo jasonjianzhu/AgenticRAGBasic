@@ -11,13 +11,13 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.routes.jobs import get_job_queue
-from app.core.dependencies import get_db
-from app.db.base import Base
-from app.db.models import Document, JobLog, KnowledgeBase
-from app.db.repositories.jobs import JobRepository
-from app.jobs.queue import InMemoryJobQueue
-from app.main import create_app
+from app.knowledge.api.routes.jobs import get_job_queue
+from app.common.core.dependencies import get_db
+from app.common.db.base import Base
+from app.common.db.models import Document, JobLog, KnowledgeBase
+from app.common.db.repositories.jobs import JobRepository
+from app.knowledge.jobs.queue import InMemoryJobQueue
+from app.main_knowledge import app as _test_app
 
 
 @pytest_asyncio.fixture
@@ -45,7 +45,7 @@ async def test_queue():
 @pytest_asyncio.fixture
 async def api_client(api_session: AsyncSession, test_queue: InMemoryJobQueue):
     """Provide an async HTTP test client with DB and queue dependency overrides."""
-    app = create_app()
+    app = _test_app
 
     async def _override_get_db():
         try:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.rag.parsing.base import (
+from app.knowledge.rag.parsing.base import (
     DocumentParser,
     ParsedDocument,
     ParsedPage,

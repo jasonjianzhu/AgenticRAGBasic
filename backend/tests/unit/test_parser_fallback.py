@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from app.rag.parsing.base import ParsedDocument
-from app.rag.parsing.fallback import FallbackParser
+from app.knowledge.rag.parsing.base import ParsedDocument
+from app.knowledge.rag.parsing.fallback import FallbackParser
 
 
 def _create_minimal_pdf(text: str = "Hello World", num_pages: int = 1) -> bytes:
@@ -82,7 +82,7 @@ class TestFallbackParserProperties:
         assert fallback_parser.name == "fallback_pypdfium2"
 
     def test_is_document_parser(self, fallback_parser: FallbackParser):
-        from app.rag.parsing.base import DocumentParser
+        from app.knowledge.rag.parsing.base import DocumentParser
         assert isinstance(fallback_parser, DocumentParser)
 
 

@@ -8,9 +8,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import Settings
-from app.db.base import Base
-from app.main import create_app
+from app.common.core.config import Settings
+from app.common.db.base import Base
 
 
 @pytest.fixture(scope="session")
@@ -53,8 +52,8 @@ async def db_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture
 async def client(test_settings) -> AsyncGenerator[AsyncClient, None]:
-    """Provide an async HTTP test client."""
-    app = create_app()
+    """Provide an async HTTP test client using the knowledge service app."""
+    from app.main_knowledge import app
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

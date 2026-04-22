@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.storage.local import LocalStorage
+from app.common.storage.local import LocalStorage
 
 
 @pytest.mark.unit

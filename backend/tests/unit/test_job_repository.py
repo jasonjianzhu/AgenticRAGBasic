@@ -9,8 +9,8 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Document, JobLog, KnowledgeBase
-from app.db.repositories.jobs import JobRepository
+from app.common.db.models import Document, JobLog, KnowledgeBase
+from app.common.db.repositories.jobs import JobRepository
 
 
 async def _create_kb_and_doc(session: AsyncSession) -> tuple[KnowledgeBase, Document]:

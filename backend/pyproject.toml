@@ -40,7 +40,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*"]
+include = ["app*", "app.common*", "app.knowledge*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

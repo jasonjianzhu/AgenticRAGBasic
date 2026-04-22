@@ -11,11 +11,11 @@ import uuid
 
 import pytest
 
-from app.db.base import Base
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.rag.embedding.base import EmbeddingProvider, EmbeddingResult
-from app.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
-from app.services.indexing import IndexingService, IndexingServiceError
+from app.common.db.base import Base
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.common.rag.embedding.base import EmbeddingProvider, EmbeddingResult
+from app.common.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
+from app.knowledge.services.indexing import IndexingService, IndexingServiceError
 
 
 # --- In-memory implementations ---
@@ -148,7 +148,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -179,7 +179,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -209,7 +209,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -247,7 +247,7 @@ class TestIndexingService:
             vector_store = InMemoryVectorStore()
 
             from sqlalchemy import select
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -284,7 +284,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -312,7 +312,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -355,7 +355,7 @@ class TestIndexingService:
             embedding = FailingProvider()
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -388,7 +388,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -421,7 +421,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -468,7 +468,7 @@ class TestIndexingService:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",
@@ -507,7 +507,7 @@ class TestIndexingServicePayload:
             embedding = InMemoryEmbeddingProvider(dim=64)
             vector_store = InMemoryVectorStore()
 
-            from app.core.config import Settings
+            from app.common.core.config import Settings
             settings = Settings(
                 DATABASE_URL="sqlite+aiosqlite:///",
                 DATABASE_URL_SYNC="sqlite:///",

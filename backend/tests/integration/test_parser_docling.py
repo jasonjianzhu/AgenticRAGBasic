@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from app.rag.parsing.base import ParsedDocument
-from app.rag.parsing.docling_parser import DoclingParser, VALID_PROFILES
+from app.knowledge.rag.parsing.base import ParsedDocument
+from app.knowledge.rag.parsing.docling_parser import DoclingParser, VALID_PROFILES
 
 
 def _create_simple_pdf(tmp_path: Path) -> Path:

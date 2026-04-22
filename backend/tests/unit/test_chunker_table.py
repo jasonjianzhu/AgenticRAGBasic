@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.rag.chunking.table import TableChunker
-from app.rag.chunking.base import ChunkData
-from app.rag.chunking.utils import estimate_tokens
-from app.rag.parsing.base import ParsedDocument, ParsedTable
+from app.knowledge.rag.chunking.table import TableChunker
+from app.knowledge.rag.chunking.base import ChunkData
+from app.knowledge.rag.chunking.utils import estimate_tokens
+from app.knowledge.rag.parsing.base import ParsedDocument, ParsedTable
 
 
 def _make_doc(tables: list[ParsedTable]) -> ParsedDocument:
@@ -34,7 +34,7 @@ class TestTableChunkerProperties:
         assert chunker.name == "table"
 
     def test_is_base_chunker(self):
-        from app.rag.chunking.base import BaseChunker
+        from app.knowledge.rag.chunking.base import BaseChunker
         assert isinstance(TableChunker(), BaseChunker)
 
 

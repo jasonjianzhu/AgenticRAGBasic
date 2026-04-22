@@ -12,12 +12,12 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.api.routes.documents import get_storage
-from app.core.dependencies import get_db
-from app.db.base import Base
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.main import create_app
-from app.storage.local import LocalStorage
+from app.knowledge.api.routes.documents import get_storage
+from app.common.core.dependencies import get_db
+from app.common.db.base import Base
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.main_knowledge import app as _test_app
+from app.common.storage.local import LocalStorage
 
 # Minimal valid PDF content recognized by filetype library
 VALID_PDF_BYTES = (
@@ -54,7 +54,7 @@ def tmp_storage(tmp_path) -> LocalStorage:
 @pytest_asyncio.fixture
 async def api_client(api_session: AsyncSession, tmp_storage: LocalStorage):
     """Provide an async HTTP test client with DB and storage dependency overrides."""
-    app = create_app()
+    app = _test_app
 
     async def _override_get_db():
         try:

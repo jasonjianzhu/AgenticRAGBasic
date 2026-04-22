@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.rag.chunking.utils import estimate_tokens
+from app.knowledge.rag.chunking.utils import estimate_tokens
 
 
 class TestEstimateTokens:

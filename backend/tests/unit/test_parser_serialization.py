@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from app.rag.parsing.base import ParsedDocument, ParsedPage, ParsedTable
-from app.rag.parsing.serialization import (
+from app.knowledge.rag.parsing.base import ParsedDocument, ParsedPage, ParsedTable
+from app.knowledge.rag.parsing.serialization import (
     load_parsed_document,
     parsed_json_path,
     save_parsed_document,
 )
-from app.storage.local import LocalStorage
+from app.common.storage.local import LocalStorage
 
 
 @pytest.fixture

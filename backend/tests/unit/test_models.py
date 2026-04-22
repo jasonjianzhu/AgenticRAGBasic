@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import (
+from app.common.db.models import (
     Chunk,
     Document,
     DocumentVersion,

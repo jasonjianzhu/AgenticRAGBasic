@@ -13,12 +13,12 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import Settings
-from app.db.base import Base
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.rag.embedding.base import EmbeddingProvider, EmbeddingResult
-from app.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
-from app.services.search_debug import FusedResult, SearchDebugService
+from app.common.core.config import Settings
+from app.common.db.base import Base
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.common.rag.embedding.base import EmbeddingProvider, EmbeddingResult
+from app.common.rag.vector_store.base import SearchResult, VectorPoint, VectorStore
+from app.knowledge.services.search_debug import FusedResult, SearchDebugService
 
 
 # --- In-memory implementations ---

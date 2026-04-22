@@ -6,8 +6,8 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.db.repositories.kb import KBRepository
+from app.common.db.models import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.common.db.repositories.kb import KBRepository
 
 
 @pytest.mark.unit
