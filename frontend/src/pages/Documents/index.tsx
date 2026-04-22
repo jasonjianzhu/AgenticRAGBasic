@@ -11,7 +11,6 @@ import {
   message,
   Typography,
   Spin,
-  Progress,
   Tooltip,
 } from 'antd';
 import {
@@ -293,24 +292,19 @@ const DocumentsPage: React.FC = () => {
         const jobInfo = jobInfoMap[record.id];
         const isActive = ['uploaded', 'parsing', 'indexing'].includes(s);
         const isFailed = s === 'failed';
-        const progress = jobInfo?.progress ?? 0;
 
         return (
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Tag color={statusColorMap[s] || 'default'}>
               {statusLabelMap[s] || s}
             </Tag>
-            {isActive && progress > 0 && (
-              <Progress
-                percent={progress}
-                size="small"
-                style={{ width: 80, marginLeft: 4 }}
-                strokeColor={s === 'indexing' ? '#722ed1' : '#fa8c16'}
-              />
-            )}
+            {isActive && <Spin size="small" />}
             {isFailed && jobInfo?.error_message && (
-              <Tooltip title={jobInfo.error_message} overlayStyle={{ maxWidth: 500 }}>
-                <Text type="danger" style={{ fontSize: 11, cursor: 'pointer', marginLeft: 4 }}>
+              <Tooltip
+                title={<pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 11, margin: 0, whiteSpace: 'pre-wrap' }}>{jobInfo.error_message}</pre>}
+                overlayStyle={{ maxWidth: 600 }}
+              >
+                <Text type="danger" style={{ fontSize: 11, cursor: 'pointer' }}>
                   查看错误
                 </Text>
               </Tooltip>
