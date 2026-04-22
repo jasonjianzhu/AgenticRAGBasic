@@ -116,27 +116,10 @@ const RAGChatPage: React.FC = () => {
               last.loading = false;
               // Strip <think>...</think> blocks from final content
               let cleaned = last.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-              // Also handle unclosed think tag (streaming may split it)
               if (cleaned.includes('<think>')) {
                 cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
               }
               last.content = cleaned;
-              // Filter citations: only keep those referenced in the answer [1] [2] etc.
-              if (last.citations && last.citations.length > 0) {
-                const referencedIndices = new Set<number>();
-                const refPattern = /\[(\d+)\]/g;
-                let match;
-                while ((match = refPattern.exec(cleaned)) !== null) {
-                  referencedIndices.add(parseInt(match[1], 10));
-                }
-                if (referencedIndices.size > 0) {
-                  last.citations = last.citations.filter((c) => referencedIndices.has(c.index));
-                }
-                // If no references found in text, keep top 3 citations as context
-                if (referencedIndices.size === 0) {
-                  last.citations = last.citations.slice(0, 3);
-                }
-              }
               break;
             }
             case 'error':
