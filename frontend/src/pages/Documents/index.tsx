@@ -148,33 +148,45 @@ const DocumentsPage: React.FC = () => {
     fetchDocs();
   }, [fetchDocs]);
 
-  // Auto-refresh when there are active (parsing/indexing) documents
+  // Auto-refresh: poll docs + job info when there are active tasks
   useEffect(() => {
-    const hasActive = docs.some((d) => ['parsing', 'indexing', 'uploaded'].includes(d.status));
+    const hasActive = docs.some((d) =>
+      ['uploaded', 'parsing', 'indexing'].includes(d.status),
+    );
     if (!hasActive) return;
-    const timer = setInterval(fetchDocs, 3000);
+
+    const poll = async () => {
+      await fetchDocs();
+    };
+    const timer = setInterval(poll, 2000);
     return () => clearInterval(timer);
   }, [docs, fetchDocs]);
 
-  // Fetch job info for documents with job_id (progress + error)
-  useEffect(() => {
-    const docsWithJobs = docs.filter((d) => d.job_id);
+  // Fetch job info (progress + error) for all docs with job_id
+  const fetchJobInfos = useCallback(async (docList: DocumentResponse[]) => {
+    const docsWithJobs = docList.filter((d) => d.job_id);
     if (docsWithJobs.length === 0) return;
 
-    const fetchJobInfos = async () => {
-      const newMap: Record<string, { progress: number; error_message: string | null }> = {};
-      for (const doc of docsWithJobs) {
+    const newMap: Record<string, { progress: number; error_message: string | null }> = {};
+    await Promise.all(
+      docsWithJobs.map(async (doc) => {
         try {
           const job = await api.getJob(doc.job_id!);
-          newMap[doc.id] = { progress: (job as any).progress ?? 0, error_message: job.error_message };
+          newMap[doc.id] = {
+            progress: (job as any).progress ?? 0,
+            error_message: job.error_message,
+          };
         } catch {
           // skip
         }
-      }
-      setJobInfoMap(newMap);
-    };
-    fetchJobInfos();
-  }, [docs]);
+      }),
+    );
+    setJobInfoMap((prev) => ({ ...prev, ...newMap }));
+  }, []);
+
+  useEffect(() => {
+    fetchJobInfos(docs);
+  }, [docs, fetchJobInfos]);
 
   const handleUpload = async (file: File) => {
     if (!uploadKB) {
@@ -279,20 +291,21 @@ const DocumentsPage: React.FC = () => {
       width: 140,
       render: (s: string, record: DocumentResponse) => {
         const jobInfo = jobInfoMap[record.id];
-        const isActive = ['parsing', 'indexing'].includes(s);
+        const isActive = ['uploaded', 'parsing', 'indexing'].includes(s);
         const isFailed = s === 'failed';
+        const progress = jobInfo?.progress ?? 0;
 
         return (
           <div>
             <Tag color={statusColorMap[s] || 'default'}>
               {statusLabelMap[s] || s}
             </Tag>
-            {isActive && jobInfo && jobInfo.progress > 0 && (
+            {isActive && progress > 0 && (
               <Progress
-                percent={jobInfo.progress}
+                percent={progress}
                 size="small"
                 style={{ width: 80, marginLeft: 4 }}
-                strokeColor={s === 'parsing' ? '#fa8c16' : '#722ed1'}
+                strokeColor={s === 'indexing' ? '#722ed1' : '#fa8c16'}
               />
             )}
             {isFailed && jobInfo?.error_message && (
