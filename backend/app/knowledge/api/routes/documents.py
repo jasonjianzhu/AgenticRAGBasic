@@ -212,20 +212,28 @@ async def delete_document(
     session: AsyncSession = Depends(get_db),
     storage: StorageBackend = Depends(get_storage),
 ) -> None:
-    """Soft-delete a document and clean up files + Qdrant points."""
+    """Hard-delete a document and clean up all related data.
+
+    Deletes: DB record + chunks + versions + local files + Qdrant points.
+    """
     repo = DocumentRepository(session)
     doc = await repo.get_by_id(doc_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Document {doc_id} not found")
 
     storage_path = doc.storage_path
+    kb_id = doc.knowledge_base_id
 
-    # Collect qdrant_point_ids from chunks before soft-deleting
+    # Collect qdrant_point_ids from chunks before deleting
     chunk_repo = ChunkRepository(session)
     chunks = await chunk_repo.list_by_document(doc_id, limit=100000)
     point_ids = [c.qdrant_point_id for c in chunks if c.qdrant_point_id]
 
-    await repo.soft_delete(doc)
+    # Hard delete: cascades to chunks and versions via FK ON DELETE CASCADE
+    from sqlalchemy import delete
+    from app.common.db.models import Document
+    await session.execute(delete(Document).where(Document.id == doc_id))
+    await session.flush()
 
     # Best-effort local file cleanup
     try:
@@ -240,15 +248,12 @@ async def delete_document(
 
     # Best-effort parsed output cleanup
     try:
-        from app.common.core.config import get_settings
-        from app.common.storage.local import LocalStorage
-
-        settings = get_settings()
-        parsed_storage = LocalStorage(base_dir=settings.parsed_dir)
-        # Delete the entire doc's parsed directory
         import shutil
         from pathlib import Path
-        parsed_doc_dir = Path(str(settings.parsed_dir)) / str(doc.knowledge_base_id) / str(doc_id)
+        from app.common.core.config import get_settings
+
+        settings = get_settings()
+        parsed_doc_dir = Path(str(settings.parsed_dir)) / str(kb_id) / str(doc_id)
         if parsed_doc_dir.exists():
             shutil.rmtree(parsed_doc_dir)
     except Exception:
