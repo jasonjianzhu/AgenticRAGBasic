@@ -310,5 +310,13 @@ async def list_document_chunks(
 
     chunk_repo = ChunkRepository(session)
     chunks = await chunk_repo.list_by_document(doc_id, skip=skip, limit=limit)
+
+    # Count total chunks for this document
+    from sqlalchemy import func, select
+    from app.common.db.models import Chunk
+    count_stmt = select(func.count(Chunk.id)).where(Chunk.document_id == doc_id)
+    count_result = await session.execute(count_stmt)
+    total = count_result.scalar() or 0
+
     items = [ChunkResponse.model_validate(c) for c in chunks]
-    return ChunkListResponse(items=items, total=len(items))
+    return ChunkListResponse(items=items, total=total)
