@@ -69,6 +69,7 @@ class IngestionTaskService:
         try:
             # 1. Update status to parsing
             doc.status = "parsing"
+            self._report_progress(document_id, "ingest", 5)
             self.session.flush()
 
             # 2. Create DocumentVersion
@@ -84,7 +85,9 @@ class IngestionTaskService:
 
             # 3. Parse document
             file_path = self._resolve_file_path(doc.storage_path)
+            self._report_progress(document_id, "ingest", 10)
             parsed = self._parse_document(file_path, parser_profile)
+            self._report_progress(document_id, "ingest", 50)
 
             # 4. Save parsed output
             parsed_storage_path = self._save_parsed_output(
@@ -95,10 +98,12 @@ class IngestionTaskService:
             )
             version.parsed_path = parsed_storage_path
             version.status = "parsed"
+            self._report_progress(document_id, "ingest", 60)
             self.session.flush()
 
             # 5 & 6. Run chunkers
             chunks = self._run_chunking(parsed, doc)
+            self._report_progress(document_id, "ingest", 80)
 
             # 7. Save chunks to DB
             self._save_chunks(
@@ -107,6 +112,7 @@ class IngestionTaskService:
                 document_version_id=version.id,
                 chunks=chunks,
             )
+            self._report_progress(document_id, "ingest", 90)
 
             # 8. Classify document type
             classified_type = self._classify_document(parsed, doc)
@@ -119,6 +125,7 @@ class IngestionTaskService:
             if classified_type and classified_type != "unknown":
                 doc.document_type = classified_type
 
+            self._report_progress(document_id, "ingest", 100)
             self.session.flush()
 
             logger.info(
@@ -139,6 +146,23 @@ class IngestionTaskService:
                 error=str(e),
             )
             raise IngestionTaskError(f"Ingestion failed for document {document_id}: {e}") from e
+
+    def _report_progress(self, document_id: uuid.UUID, job_type: str, progress: int) -> None:
+        """Update the progress field on the latest JobLog for this document."""
+        from sqlalchemy import select
+        from app.common.db.models import JobLog
+
+        stmt = (
+            select(JobLog)
+            .where(JobLog.document_id == document_id, JobLog.job_type == job_type)
+            .order_by(JobLog.created_at.desc())
+            .limit(1)
+        )
+        result = self.session.execute(stmt)
+        job_log = result.scalar_one_or_none()
+        if job_log is not None:
+            job_log.progress = progress
+            self.session.flush()
 
     def _next_version_number(self, document_id: uuid.UUID) -> int:
         """Get the next version number for a document."""

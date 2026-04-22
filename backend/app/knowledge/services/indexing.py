@@ -87,22 +87,27 @@ class IndexingService:
         try:
             # 1. Load chunks
             chunks = self._load_chunks(document_id)
+            self._report_progress(document_id, 10)
             if not chunks:
                 logger.warning("no_chunks_to_index", document_id=str(document_id))
                 doc.status = "ready"
+                self._report_progress(document_id, 100)
                 self.session.flush()
                 return
 
             # 2. Update status to indexing
             doc.status = "indexing"
+            self._report_progress(document_id, 20)
             self.session.flush()
 
             # 3 & 4. Batch embed and write
             loop = _get_or_create_event_loop()
             loop.run_until_complete(self._embed_and_write(doc, chunks))
+            self._report_progress(document_id, 90)
 
             # 6. Update status to ready
             doc.status = "ready"
+            self._report_progress(document_id, 100)
             self.session.flush()
 
             logger.info(
@@ -122,6 +127,22 @@ class IndexingService:
             raise IndexingServiceError(
                 f"Indexing failed for document {document_id}: {e}"
             ) from e
+
+    def _report_progress(self, document_id: uuid.UUID, progress: int) -> None:
+        """Update the progress field on the latest indexing JobLog."""
+        from app.common.db.models import JobLog
+
+        stmt = (
+            select(JobLog)
+            .where(JobLog.document_id == document_id, JobLog.job_type == "index")
+            .order_by(JobLog.created_at.desc())
+            .limit(1)
+        )
+        result = self.session.execute(stmt)
+        job_log = result.scalar_one_or_none()
+        if job_log is not None:
+            job_log.progress = progress
+            self.session.flush()
 
     def _load_chunks(self, document_id: uuid.UUID) -> list[Chunk]:
         """Load all chunks for a document."""

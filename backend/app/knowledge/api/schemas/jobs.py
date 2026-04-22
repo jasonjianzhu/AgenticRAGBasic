@@ -18,6 +18,7 @@ class JobResponse(BaseModel):
     status: str  # queued / started / finished / failed / retrying
     document_id: uuid.UUID | None = None
     attempts: int
+    progress: int = 0
     error_message: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None

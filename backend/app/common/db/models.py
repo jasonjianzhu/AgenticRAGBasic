@@ -153,6 +153,7 @@ class JobLog(TimestampMixin, Base):
         UUID_TYPE, ForeignKey("documents.id", ondelete="SET NULL"), index=True
     )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
