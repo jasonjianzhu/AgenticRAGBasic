@@ -48,6 +48,33 @@ class Settings(BaseSettings):
     embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
     embedding_use_fp16: bool = Field(default=True, alias="EMBEDDING_USE_FP16")
 
+    # --- LLM ---
+    llm_base_url: str = Field(default="", alias="LLM_BASE_URL")
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
+    llm_model: str = Field(default="minimax-m2.7", alias="LLM_MODEL")
+    llm_temperature: float = Field(default=0.1, alias="LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=2048, alias="LLM_MAX_TOKENS")
+    llm_timeout: float = Field(default=60.0, alias="LLM_TIMEOUT")
+
+    # --- Reranker ---
+    reranker_base_url: str = Field(default="", alias="RERANKER_BASE_URL")
+    reranker_api_key: str = Field(default="", alias="RERANKER_API_KEY")
+    reranker_enabled: bool = Field(default=False, alias="RERANKER_ENABLED")
+    reranker_top_n: int = Field(default=20, alias="RERANKER_TOP_N")
+
+    # --- RAG ---
+    rag_search_top_k: int = Field(default=10, alias="RAG_SEARCH_TOP_K")
+    rag_answer_top_k: int = Field(default=5, alias="RAG_ANSWER_TOP_K")
+    rag_rewrite_enabled: bool = Field(default=True, alias="RAG_REWRITE_ENABLED")
+    rag_context_window_tokens: int = Field(default=4000, alias="RAG_CONTEXT_WINDOW_TOKENS")
+    rag_score_threshold: float = Field(default=0.3, alias="RAG_SCORE_THRESHOLD")
+    rag_refusal_threshold: float = Field(default=0.2, alias="RAG_REFUSAL_THRESHOLD")
+
+    # --- Langfuse ---
+    langfuse_host: str = Field(default="", alias="LANGFUSE_HOST")
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+
     # --- RQ / Worker ---
     rq_ingestion_queue: str = Field(default="ingestion", alias="RQ_INGESTION_QUEUE")
     rq_indexing_queue: str = Field(default="indexing", alias="RQ_INDEXING_QUEUE")
