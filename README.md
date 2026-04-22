@@ -120,15 +120,16 @@ alembic upgrade head
 
 ```bash
 # 1. 基础设施（PG + Qdrant）
-cd backend && docker compose up -d
+cd backend
+docker compose up -d
 
 # 2. 数据库迁移（首次或重建数据库后）
-.venv/bin/alembic upgrade head
+../.venv/bin/alembic upgrade head
 
 # 3. RAG 服务
-.venv/bin/uvicorn app.main_rag:app --port 8001
+../.venv/bin/uvicorn app.main_rag:app --port 8001
 
-# 4. 前端
+# 4. 前端（另一个终端，在项目根目录）
 cd frontend && npm run dev
 ```
 
@@ -138,18 +139,19 @@ cd frontend && npm run dev
 
 ```bash
 # 1. 基础设施（PG + Qdrant + Redis）
-cd backend && docker compose --profile knowledge up -d
+cd backend
+docker compose --profile knowledge up -d
 
 # 2. 数据库迁移（首次或重建数据库后）
-.venv/bin/alembic upgrade head
+../.venv/bin/alembic upgrade head
 
 # 3. 知识库服务
-.venv/bin/uvicorn app.main_knowledge:app --port 8000
+../.venv/bin/uvicorn app.main_knowledge:app --port 8000
 
-# 4. Worker（处理解析和索引任务）
-.venv/bin/python -m app.knowledge.jobs.worker
+# 4. Worker（另一个终端，在 backend/ 下）
+../.venv/bin/python -m app.knowledge.jobs.worker
 
-# 5. 前端
+# 5. 前端（另一个终端，在项目根目录）
 cd frontend && npm run dev
 ```
 
@@ -158,22 +160,23 @@ cd frontend && npm run dev
 ### 场景 C：全部功能
 
 ```bash
-# 1. 基础设施
-cd backend && docker compose --profile all up -d
+# 1. 基础设施（在 backend/ 下）
+cd backend
+docker compose --profile all up -d
 
 # 2. 数据库迁移（首次或重建数据库后）
-.venv/bin/alembic upgrade head
+../.venv/bin/alembic upgrade head
 
-# 3. 终端1：知识库服务
-.venv/bin/uvicorn app.main_knowledge:app --port 8000
+# 3. 终端1：知识库服务（在 backend/ 下）
+../.venv/bin/uvicorn app.main_knowledge:app --port 8000
 
-# 4. 终端2：RAG 服务
-.venv/bin/uvicorn app.main_rag:app --port 8001
+# 4. 终端2：RAG 服务（在 backend/ 下）
+../.venv/bin/uvicorn app.main_rag:app --port 8001
 
-# 5. 终端3：Worker
-.venv/bin/python -m app.knowledge.jobs.worker
+# 5. 终端3：Worker（在 backend/ 下）
+../.venv/bin/python -m app.knowledge.jobs.worker
 
-# 6. 终端4：前端
+# 6. 终端4：前端（在项目根目录）
 cd frontend && npm run dev
 ```
 
