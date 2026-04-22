@@ -9,15 +9,19 @@ from app.rag.generation.base import BaseLLMClient, LLMMessage
 
 logger = get_logger(__name__)
 
-REWRITE_SYSTEM_PROMPT = """你是一个搜索查询改写助手。用户会输入一个问题，你需要：
-1. 改写为更适合检索的查询（保留核心语义，补充同义词和相关术语）
-2. 提取关键词用于扩展检索
+REWRITE_SYSTEM_PROMPT = """你是一个搜索查询改写助手。用户会输入一个问题，请将其改写为更适合向量检索的查询。
 
-请严格按以下 JSON 格式返回，不要输出其他内容：
-{
-  "rewritten_query": "改写后的查询",
-  "keywords": ["关键词1", "关键词2", "关键词3"]
-}"""
+规则：
+1. 保留核心语义，补充同义词和相关术语
+2. 只输出改写后的查询文本，一行，不要输出任何解释、思考过程或其他内容
+3. 不要回答用户的问题，只做查询改写
+
+示例：
+用户：电池过温怎么办
+输出：电池过温告警 温度过高 处理方法 解决方案
+
+用户：ESS-5000安装步骤
+输出：ESS-5000 储能系统 安装步骤 安装指南 操作流程"""
 
 
 @dataclass
@@ -55,45 +59,34 @@ class QueryRewriter:
         ]
 
         try:
-            response = await self._llm.complete(messages, temperature=0.1, max_tokens=256)
-            parsed = self._parse_response(response.content)
-            rewritten = parsed.get("rewritten_query", "").strip()
+            response = await self._llm.complete(messages, temperature=0.1, max_tokens=128)
+            rewritten = self._clean_response(response.content)
             result = RewriteResult(
                 original_query=query,
                 rewritten_query=rewritten if rewritten else query,
-                keywords=parsed.get("keywords", []),
+                keywords=[],
             )
             logger.info(
                 "query_rewritten",
                 original=query,
                 rewritten=result.rewritten_query,
-                keywords=result.keywords,
             )
             return result
         except Exception as e:
             logger.warning("query_rewrite_failed", query=query, error=str(e))
             return RewriteResult(original_query=query, rewritten_query=query)
 
-    def _parse_response(self, content: str) -> dict:
-        """Parse LLM response as JSON, with fallback extraction."""
-        content = content.strip()
-
-        # Try direct JSON parse
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            pass
-
-        # Try extracting JSON from markdown code block
-        if "```" in content:
-            import re
-            match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL)
-            if match:
-                try:
-                    return json.loads(match.group(1).strip())
-                except json.JSONDecodeError:
-                    pass
-
-        # Fallback: LLM didn't return valid JSON, discard the response
-        logger.warning("rewrite_parse_failed_using_original", content_preview=content[:100])
-        return {"rewritten_query": "", "keywords": []}
+    def _clean_response(self, content: str) -> str:
+        """Clean LLM response: strip think tags, markdown, extra whitespace."""
+        import re
+        text = content.strip()
+        # Remove <think>...</think> blocks
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        # Remove markdown code blocks
+        text = re.sub(r"```.*?```", "", text, flags=re.DOTALL).strip()
+        # Take only the first line (in case LLM added explanations)
+        first_line = text.split("\n")[0].strip()
+        # If the response is too long (>200 chars), it's probably an answer not a rewrite
+        if len(first_line) > 200:
+            return ""
+        return first_line
