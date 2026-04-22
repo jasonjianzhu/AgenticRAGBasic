@@ -87,7 +87,7 @@ const RAGChatPage: React.FC = () => {
         query: query.trim(),
         kb_ids: selectedKBs,
         top_k: 5,
-        enable_rewrite: true,
+        enable_rewrite: false,
       },
       (event: SSEEvent) => {
         setMessages((prev) => {
@@ -104,12 +104,41 @@ const RAGChatPage: React.FC = () => {
                 event.data as unknown as Citation,
               ];
               break;
-            case 'token':
-              last.content += (event.data as { content: string }).content;
+            case 'token': {
+              const token = (event.data as { content: string }).content;
+              // Track think tag state in content using markers
+              const currentContent = last.content;
+              const newContent = currentContent + token;
+              last.content = newContent;
               break;
-            case 'done':
+            }
+            case 'done': {
               last.loading = false;
+              // Strip <think>...</think> blocks from final content
+              let cleaned = last.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+              // Also handle unclosed think tag (streaming may split it)
+              if (cleaned.includes('<think>')) {
+                cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
+              }
+              last.content = cleaned;
+              // Filter citations: only keep those referenced in the answer [1] [2] etc.
+              if (last.citations && last.citations.length > 0) {
+                const referencedIndices = new Set<number>();
+                const refPattern = /\[(\d+)\]/g;
+                let match;
+                while ((match = refPattern.exec(cleaned)) !== null) {
+                  referencedIndices.add(parseInt(match[1], 10));
+                }
+                if (referencedIndices.size > 0) {
+                  last.citations = last.citations.filter((c) => referencedIndices.has(c.index));
+                }
+                // If no references found in text, keep top 3 citations as context
+                if (referencedIndices.size === 0) {
+                  last.citations = last.citations.slice(0, 3);
+                }
+              }
               break;
+            }
             case 'error':
               last.loading = false;
               last.error = (event.data as { message: string }).message;
@@ -201,7 +230,12 @@ const RAGChatPage: React.FC = () => {
                 <Paragraph
                   style={{ marginBottom: msg.citations?.length ? 8 : 0, whiteSpace: 'pre-wrap' }}
                 >
-                  {msg.content}
+                  {msg.role === 'assistant'
+                    ? msg.content
+                        .replace(/<think>[\s\S]*?<\/think>/g, '')
+                        .replace(/<think>[\s\S]*/g, '')
+                        .trim() || (msg.loading ? '' : msg.content)
+                    : msg.content}
                 </Paragraph>
               )}
 
