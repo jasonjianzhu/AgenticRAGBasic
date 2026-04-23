@@ -235,58 +235,6 @@ const RAGChatPage: React.FC = () => {
                 </Text>
               )}
 
-              {/* Citations */}
-              {msg.citations && msg.citations.length > 0 && (
-                <Collapse
-                  size="small"
-                  ghost
-                  items={[
-                    {
-                      key: 'citations',
-                      label: (
-                        <Space size={4}>
-                          <FileTextOutlined />
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            参考来源 ({msg.citations.length})
-                          </Text>
-                        </Space>
-                      ),
-                      children: (
-                        <div>
-                          {msg.citations.map((cit, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                padding: '4px 0',
-                                borderBottom: '1px solid #f5f5f5',
-                                fontSize: 12,
-                              }}
-                            >
-                              <Text strong style={{ fontSize: 12 }}>
-                                {cit.document_title}
-                              </Text>
-                              {cit.page && (
-                                <Text type="secondary" style={{ fontSize: 11 }}>
-                                  {' '}
-                                  第{cit.page}页
-                                </Text>
-                              )}
-                              <Paragraph
-                                type="secondary"
-                                style={{ fontSize: 11, margin: '2px 0 0 0' }}
-                                ellipsis={{ rows: 2 }}
-                              >
-                                {cit.snippet}
-                              </Paragraph>
-                            </div>
-                          ))}
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              )}
-
               {/* Trace */}
               {msg.trace && (
                 <Collapse
