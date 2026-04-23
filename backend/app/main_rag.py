@@ -18,3 +18,28 @@ app = create_base_app(
 app.include_router(health_router)
 app.include_router(rag_router)
 app.include_router(config_router)
+
+
+@app.on_event("startup")
+async def _preload_models():
+    """Preload embedding and reranker models at startup."""
+    from app.common.core.logging import get_logger
+    logger = get_logger(__name__)
+
+    logger.info("preloading_models")
+
+    # Preload embedding model
+    from app.common.rag.embedding import create_embedding_provider
+    provider = create_embedding_provider()
+    await provider.embed_query("warmup")
+    logger.info("embedding_model_ready")
+
+    # Preload reranker model
+    from app.rag.api.routes.rag import _get_reranker
+    from app.common.core.config import get_settings
+    reranker = _get_reranker(get_settings())
+    if reranker:
+        await reranker.rerank("warmup", ["warmup"], top_n=1)
+        logger.info("reranker_model_ready")
+
+    logger.info("all_models_preloaded")
