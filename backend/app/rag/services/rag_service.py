@@ -251,6 +251,9 @@ class RAGService:
                 new_fused = []
                 for rr in rerank_results:
                     if rr.index < len(candidates):
+                        # Filter out very low rerank scores (irrelevant results)
+                        if rr.score < 0.01:
+                            continue
                         pid, score, payload = candidates[rr.index]
                         new_fused.append((pid, score, payload))
                         rerank_scores[pid] = rr.score
