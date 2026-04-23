@@ -84,3 +84,12 @@
 - 先补全 chunk 元数据（language、product_model 在 ingestion 阶段填充）
 - 然后在 RAG 问答页加过滤条件选择器
 - 或重新启用自动 filter（基于 context 提取）
+
+### 9. LLM 引用编号与 citation 不一致
+
+**现状**：后端 context packing 用 [1] [2] [3] 编号传给 LLM，citation 列表也用相同编号。但 MiniMax 生成答案时可能不遵守编号规则（自己编号或不标注引用），导致前端显示的引用来源和答案中的 [n] 对不上。
+
+**改进**：
+- 优化 system prompt，更强调引用格式要求
+- 或后端在生成完成后做引用对齐（解析答案中的 [n]，映射到实际 citation）
+- 或换用更遵守指令的模型

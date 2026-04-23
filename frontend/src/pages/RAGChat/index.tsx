@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   Input,
   Button,
@@ -209,16 +210,20 @@ const RAGChatPage: React.FC = () => {
               {/* Content */}
               {msg.loading && !msg.content ? (
                 <Spin size="small" />
+              ) : msg.role === 'assistant' ? (
+                <div style={{ marginBottom: msg.citations?.length ? 8 : 0 }}>
+                  <ReactMarkdown>
+                    {msg.content
+                      .replace(/<think>[\s\S]*?<\/think>/g, '')
+                      .replace(/<think>[\s\S]*/g, '')
+                      .trim()}
+                  </ReactMarkdown>
+                </div>
               ) : (
                 <Paragraph
-                  style={{ marginBottom: msg.citations?.length ? 8 : 0, whiteSpace: 'pre-wrap' }}
+                  style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
                 >
-                  {msg.role === 'assistant'
-                    ? msg.content
-                        .replace(/<think>[\s\S]*?<\/think>/g, '')
-                        .replace(/<think>[\s\S]*/g, '')
-                        .trim() || (msg.loading ? '' : msg.content)
-                    : msg.content}
+                  {msg.content}
                 </Paragraph>
               )}
 
