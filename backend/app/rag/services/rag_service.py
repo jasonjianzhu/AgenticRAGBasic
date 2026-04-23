@@ -328,9 +328,14 @@ class RAGService:
         yield {
             "event": "trace",
             "data": {
+                "query_normalized": search_result.trace.query_normalized,
                 "query_rewritten": search_result.rewritten_query,
-                "search_mode": "hybrid",
-                "hits": search_result.trace.fused_total,
+                "retrieval_context": search_result.trace.retrieval_context,
+                "dense_hits": search_result.trace.dense_hits,
+                "sparse_hits": search_result.trace.sparse_hits,
+                "fused_total": search_result.trace.fused_total,
+                "reranked": search_result.trace.reranked,
+                "returned": search_result.trace.returned,
                 "latency_ms": search_result.trace.latency_ms,
             },
         }
