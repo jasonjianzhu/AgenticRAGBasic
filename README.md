@@ -141,8 +141,8 @@ docker compose up -d
 # 3. 知识库服务（Agent 页面需要获取知识库列表）
 ../.venv/bin/uvicorn app.main_knowledge:app --port 8000 --reload
 
-# 4. Agent 服务（另一个终端）
-../.venv/bin/uvicorn app.main_agent:app --port 8002 --reload
+# 4. Agent 服务（另一个终端，不加 --reload，模型加载慢）
+../.venv/bin/uvicorn app.main_agent:app --port 8002
 
 # 5. 前端（另一个终端）
 cd ../frontend
@@ -215,8 +215,8 @@ docker compose --profile all up -d
 # 3. 终端1：知识库服务
 ../.venv/bin/uvicorn app.main_knowledge:app --port 8000 --reload
 
-# 4. 终端2：Agent 服务（内含 RAG 能力）
-../.venv/bin/uvicorn app.main_agent:app --port 8002 --reload
+# 4. 终端2：Agent 服务（不加 --reload，模型加载慢）
+../.venv/bin/uvicorn app.main_agent:app --port 8002
 
 # 5. 终端3：Worker
 ../.venv/bin/python -m app.knowledge.jobs.worker
