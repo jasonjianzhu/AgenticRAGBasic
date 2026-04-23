@@ -28,6 +28,8 @@ dependencies = [
     "FlagEmbedding>=1.2.0,<2.0",
     "transformers>=4.41.0,<4.50.0",
     "langfuse>=2.0.0,<3.0",
+    "pydantic-ai>=0.2.0,<1.0",
+    "sqlparse>=0.5.0,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -43,7 +45,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*", "app.common*", "app.knowledge*"]
+include = ["app*", "app.common*", "app.knowledge*", "app.rag*", "app.agent*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

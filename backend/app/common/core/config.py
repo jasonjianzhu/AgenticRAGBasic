@@ -77,6 +77,19 @@ class Settings(BaseSettings):
     langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
 
+    # --- Agent ---
+    agent_context_window: int = Field(default=20, alias="AGENT_CONTEXT_WINDOW")
+    agent_session_ttl_hours: int = Field(default=24, alias="AGENT_SESSION_TTL_HOURS")
+
+    # --- Business Database (read-only) ---
+    business_db_url: str = Field(
+        default="postgresql+asyncpg://readonly:readonly@localhost:5432/energy_business",
+        alias="BUSINESS_DB_URL",
+    )
+    business_db_allowed_tables: str = Field(default="*", alias="BUSINESS_DB_ALLOWED_TABLES")
+    business_db_query_timeout: int = Field(default=30, alias="BUSINESS_DB_QUERY_TIMEOUT")
+    business_db_max_rows: int = Field(default=500, alias="BUSINESS_DB_MAX_ROWS")
+
     # --- RQ / Worker ---
     rq_ingestion_queue: str = Field(default="ingestion", alias="RQ_INGESTION_QUEUE")
     rq_indexing_queue: str = Field(default="indexing", alias="RQ_INDEXING_QUEUE")

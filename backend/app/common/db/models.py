@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -170,3 +171,44 @@ class RAGConfig(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = _uuid_pk()
     key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     value: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+
+
+class ChatSession(TimestampMixin, Base):
+    """Agent chat session."""
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="新对话")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="active", index=True)
+    metadata_: Mapped[dict] = mapped_column("metadata", JsonType, nullable=False, default=dict)
+
+    messages: Mapped[list[ChatMessage]] = relationship(
+        back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at"
+    )
+
+
+class ChatMessage(Base):
+    """A single message within a chat session."""
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    session: Mapped[ChatSession] = relationship(back_populates="messages")
+    role: Mapped[str] = mapped_column(String(50), nullable=False)  # user / assistant / tool
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    message_type: Mapped[str] = mapped_column(String(50), nullable=False, default="text")
+    tool_name: Mapped[str | None] = mapped_column(String(100))
+    tool_args: Mapped[dict | None] = mapped_column(JsonType)
+    tool_result: Mapped[dict | None] = mapped_column(JsonType)
+    metadata_: Mapped[dict] = mapped_column("metadata", JsonType, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )

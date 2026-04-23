@@ -7,6 +7,7 @@ import KnowledgeBasePage from '@/pages/KnowledgeBase';
 import DocumentsPage from '@/pages/Documents';
 import SearchDebugPage from '@/pages/SearchDebug';
 import RAGChatPage from '@/pages/RAGChat';
+import AgentChatPage from '@/pages/AgentChat';
 
 const App: React.FC = () => (
   <ConfigProvider locale={zhCN}>
@@ -17,7 +18,8 @@ const App: React.FC = () => (
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/search" element={<SearchDebugPage />} />
           <Route path="/chat" element={<RAGChatPage />} />
-          <Route path="*" element={<Navigate to="/kb" replace />} />
+          <Route path="/agent" element={<AgentChatPage />} />
+          <Route path="*" element={<Navigate to="/agent" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

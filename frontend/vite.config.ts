@@ -20,6 +20,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/rag-api/, ''),
       },
+      '/agent-api': {
+        target: 'http://127.0.0.1:8002',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/agent-api/, ''),
+      },
     },
   },
 })

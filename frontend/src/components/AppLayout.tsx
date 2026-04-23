@@ -5,6 +5,7 @@ import {
   FileTextOutlined,
   SearchOutlined,
   MessageOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
@@ -15,6 +16,7 @@ const menuItems = [
   { key: '/documents', icon: <FileTextOutlined />, label: '文档管理' },
   { key: '/search', icon: <SearchOutlined />, label: '检索调试' },
   { key: '/chat', icon: <MessageOutlined />, label: 'RAG 问答' },
+  { key: '/agent', icon: <RobotOutlined />, label: 'Agent 对话' },
 ];
 
 const AppLayout: React.FC = () => {
