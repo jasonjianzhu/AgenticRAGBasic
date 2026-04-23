@@ -384,25 +384,27 @@ class RAGService:
     # ------------------------------------------------------------------
 
     def _pack_context(self, results: list[SearchResultItem]) -> str:
-        """Pack search results into LLM context string."""
+        """Pack search results into LLM context string with clear numbering."""
         parts = []
         for i, r in enumerate(results, start=1):
-            source = f"[{i}] {r.document_title}"
+            source = f"来源[{i}]: {r.document_title}"
             if r.page_start:
-                source += f" (p.{r.page_start})"
+                source += f", 第{r.page_start}页"
             parts.append(f"{source}\n{r.content}")
         return "\n\n---\n\n".join(parts)
 
     def _build_answer_messages(self, query: str, context: str) -> list[LLMMessage]:
         """Build messages for answer generation."""
         system_prompt = (
-            "你是一个专业的储能行业知识问答助手。请根据以下检索到的参考资料回答用户问题。\n\n"
-            "规则：\n"
-            "1. 只基于提供的参考资料回答，不要编造信息\n"
-            "2. 在回答中用 [1] [2] 等标注引用来源\n"
-            "3. 如果参考资料不足以回答问题，请明确告知\n"
-            "4. 回答要简洁准确\n\n"
-            f"参考资料：\n{context}"
+            "你是储能行业知识问答助手。根据下方参考资料回答用户问题。\n\n"
+            "严格规则：\n"
+            "1. 只基于参考资料回答，不要编造任何信息\n"
+            "2. 必须在回答中标注引用来源，格式为 [1] [2] [3]，编号对应下方参考资料的编号\n"
+            "3. 每个关键信息点后面紧跟引用标注，例如：电池过温阈值为60°C[1]\n"
+            "4. 如果参考资料不足以回答，明确说明"根据现有资料无法回答"\n"
+            "5. 不要自己编造引用编号，只使用参考资料中存在的编号\n"
+            "6. 回答简洁准确，使用 Markdown 格式\n\n"
+            f"{context}"
         )
         return [
             LLMMessage(role="system", content=system_prompt),

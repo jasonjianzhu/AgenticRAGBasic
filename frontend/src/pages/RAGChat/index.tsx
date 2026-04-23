@@ -121,6 +121,21 @@ const RAGChatPage: React.FC = () => {
                 cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
               }
               last.content = cleaned;
+
+              // Align citations: only keep those actually referenced in the answer
+              if (last.citations && last.citations.length > 0 && cleaned) {
+                const referencedIndices = new Set<number>();
+                const refPattern = /\[(\d+)\]/g;
+                let match;
+                while ((match = refPattern.exec(cleaned)) !== null) {
+                  referencedIndices.add(parseInt(match[1], 10));
+                }
+                if (referencedIndices.size > 0) {
+                  last.citations = last.citations.filter((c) =>
+                    referencedIndices.has(c.index),
+                  );
+                }
+              }
               break;
             }
             case 'error':
