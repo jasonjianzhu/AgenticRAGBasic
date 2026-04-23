@@ -12,34 +12,34 @@ const ChartRenderer: React.FC<Props> = ({ option }) => {
 
   useEffect(() => {
     if (!chartRef.current) return;
-
-    // If it's a "table" type chart, skip ECharts rendering
     if (option.chart_type === 'table') return;
 
-    if (!instanceRef.current) {
-      instanceRef.current = echarts.init(chartRef.current);
+    // Dispose old instance if exists (handles re-renders)
+    if (instanceRef.current) {
+      instanceRef.current.dispose();
     }
 
-    // The option from backend is already ECharts-compatible
-    instanceRef.current.setOption(option as echarts.EChartsOption, true);
+    const instance = echarts.init(chartRef.current);
+    instanceRef.current = instance;
 
-    const handleResize = () => instanceRef.current?.resize();
+    instance.setOption(option as echarts.EChartsOption, true);
+
+    // Delay resize to ensure container has correct dimensions
+    const timer = setTimeout(() => instance.resize(), 100);
+
+    const handleResize = () => instance.resize();
     window.addEventListener('resize', handleResize);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('resize', handleResize);
+      instance.dispose();
+      instanceRef.current = null;
     };
   }, [option]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      instanceRef.current?.dispose();
-    };
-  }, []);
-
   if (option.chart_type === 'table') {
-    return null; // Table type is handled by DataTable component
+    return null;
   }
 
   return (

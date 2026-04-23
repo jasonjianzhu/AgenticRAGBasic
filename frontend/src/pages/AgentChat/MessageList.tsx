@@ -4,7 +4,6 @@ import remarkGfm from 'remark-gfm';
 import { Card, Spin, Typography, Empty } from 'antd';
 import type { AgentMessage } from '@/types/agent';
 import ToolCallDisplay from './ToolCallDisplay';
-import DataTable from './DataTable';
 import ChartRenderer from './ChartRenderer';
 
 const { Paragraph, Text } = Typography;
@@ -56,11 +55,6 @@ const MessageList: React.FC<Props> = ({ messages }) => {
             {msg.toolCalls && msg.toolCalls.length > 0 && (
               <ToolCallDisplay toolCalls={msg.toolCalls} />
             )}
-
-            {/* Data tables */}
-            {msg.dataTables?.map((dt, i) => (
-              <DataTable key={`dt-${i}`} data={dt} />
-            ))}
 
             {/* Charts */}
             {msg.charts?.map((chart, i) => (

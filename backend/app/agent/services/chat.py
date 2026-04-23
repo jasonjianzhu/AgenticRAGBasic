@@ -12,11 +12,8 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    SystemPromptPart,
     TextPart,
     UserPromptPart,
-    ToolCallPart,
-    ToolReturnPart,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,30 +59,27 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
         _schema_description = "（业务数据库暂不可用）"
 
     system_prompt = build_system_prompt(_schema_description)
-
-    # Build PydanticAI model name from settings
-    # MiniMax uses OpenAI-compatible API, so we use openai: prefix
     model_name = f"openai:{settings.llm_model}"
-
     _agent = create_agent(model_name=model_name, system_prompt=system_prompt)
     return _agent
 
 
 def _parse_allowed_tables(config_value: str) -> set[str] | None:
-    """Parse BUSINESS_DB_ALLOWED_TABLES config."""
     if config_value.strip() == "*":
         return None
     return {t.strip() for t in config_value.split(",") if t.strip()}
 
 
-class ChatService:
-    """Orchestrates Agent chat: receives message, runs Agent, streams SSE events.
+def _clean_think_tags(text: str) -> str:
+    """Remove <think>...</think> blocks from LLM output."""
+    cleaned = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()
+    if "<think>" in cleaned:
+        cleaned = re.sub(r"<think>[\s\S]*", "", cleaned).strip()
+    return cleaned
 
-    Args:
-        rag_service: Phase 2 RAG service for knowledge QA.
-        db_session: Async DB session for session persistence.
-        settings: Application settings.
-    """
+
+class ChatService:
+    """Orchestrates Agent chat with real-time SSE streaming."""
 
     def __init__(
         self,
@@ -106,7 +100,10 @@ class ChatService:
     ) -> AsyncIterator[dict]:
         """Process a chat message and yield SSE events.
 
-        Event types: tool_start, tool_result, citation, data_table, chart, token, done, error
+        Uses run_stream for real-time token streaming.
+        Tool events (tool_start, tool_result, citation, data_table, chart)
+        are emitted via the event queue during tool execution.
+        Text tokens are streamed in real-time after tools complete.
         """
         # 1. Get or create session
         if session_id:
@@ -121,28 +118,26 @@ class ChatService:
         # 2. Save user message
         await self._session_service.add_message(session_id, role="user", content=message)
 
-        # Update title from first message
         msg_count = await self._session_service.get_message_count(session_id)
         if msg_count <= 1:
             await self._session_service.update_title_from_first_message(session_id, message)
 
-        # 3. Build message history for Agent
+        # 3. Build message history
         history = await self._session_service.get_context_messages(session_id)
 
-        # 4. Set up event queue for tool callbacks
+        # 4. Event queue for tool callbacks
         event_queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
         async def emit_event(event_type: str, data: Any) -> None:
             await event_queue.put({"event": event_type, "data": data})
 
-        # 5. Build Agent dependencies
+        # 5. Build deps
         sql_executor = SQLExecutor(self._settings)
         allowed = _parse_allowed_tables(self._settings.business_db_allowed_tables)
         sql_validator = SQLValidator(
             allowed_tables=allowed,
             max_rows=self._settings.business_db_max_rows,
         )
-
         deps = AgentDeps(
             rag_service=self._rag_service,
             sql_executor=sql_executor,
@@ -154,18 +149,16 @@ class ChatService:
         # 6. Get Agent
         agent = await _get_or_create_agent(self._settings)
 
-        # 7. Run Agent in background task, stream results
-        result_text = ""
+        # 7. Run with streaming
+        message_history = self._build_message_history(history[:-1] if history else [])
+        full_text = ""
         agent_error = None
 
-        async def run_agent():
-            nonlocal result_text, agent_error
+        # Background task: run agent with streaming, push tool events + text tokens to queue
+        async def run_agent_stream():
+            nonlocal full_text, agent_error
             try:
-                # Build message history for PydanticAI
-                # PydanticAI expects the last user message separately
-                message_history = self._build_message_history(history[:-1] if history else [])
-
-                result = await agent.run(
+                async with agent.run_stream(
                     message,
                     deps=deps,
                     message_history=message_history,
@@ -173,50 +166,67 @@ class ChatService:
                         "temperature": self._settings.llm_temperature,
                         "max_tokens": self._settings.llm_max_tokens,
                     },
-                )
-                result_text = result.response.text
+                ) as response:
+                    # Stream text tokens as they arrive
+                    async for delta in response.stream_text(delta=True):
+                        # Clean think tags on the fly
+                        if "<think>" in delta or "</think>" in delta:
+                            continue
+                        await event_queue.put({"event": "token", "data": {"content": delta}})
+                    # Get final full text
+                    full_text = _clean_think_tags(response.response.text or "")
             except Exception as e:
-                logger.error("agent_run_error", error=str(e))
+                logger.error("agent_stream_error", error=str(e))
                 agent_error = str(e)
             finally:
                 await event_queue.put(None)  # signal done
 
-        # Start agent in background
-        agent_task = asyncio.create_task(run_agent())
+        # Start streaming in background
+        agent_task = asyncio.create_task(run_agent_stream())
 
-        # Yield tool events as they come in
+        # Yield events as they come
+        in_think = False
         while True:
             event = await event_queue.get()
             if event is None:
                 break
+            # Filter out think tag content from tokens
+            if event["event"] == "token":
+                content = event["data"]["content"]
+                # Track <think> state
+                if "<think>" in content:
+                    in_think = True
+                    # Send part before <think> if any
+                    before = content.split("<think>")[0]
+                    if before:
+                        yield {"event": "token", "data": {"content": before}}
+                    continue
+                if "</think>" in content:
+                    in_think = False
+                    # Send part after </think> if any
+                    after = content.split("</think>")[-1]
+                    if after:
+                        yield {"event": "token", "data": {"content": after}}
+                    continue
+                if in_think:
+                    continue
             yield event
 
-        # Wait for agent to finish
         await agent_task
 
-        # 8. Stream the final text response as tokens
+        # Error
         if agent_error:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
-        elif result_text:
-            # Clean think tags
-            cleaned = re.sub(r"<think>[\s\S]*?</think>", "", result_text).strip()
-            if "<think>" in cleaned:
-                cleaned = re.sub(r"<think>[\s\S]*", "", cleaned).strip()
 
-            # Stream tokens (split into chunks for smooth rendering)
-            chunk_size = 4
-            for i in range(0, len(cleaned), chunk_size):
-                yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
-
-        # 9. Save assistant message
+        # 8. Save assistant message
         await self._session_service.add_message(
             session_id,
             role="assistant",
-            content=result_text or "",
+            content=full_text,
             message_type="text",
         )
 
-        # 10. Done
+        # 9. Done
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 
     def _build_message_history(self, history: list[dict]) -> list[ModelMessage]:
