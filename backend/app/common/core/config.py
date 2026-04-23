@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     reranker_api_key: str = Field(default="", alias="RERANKER_API_KEY")
     reranker_enabled: bool = Field(default=False, alias="RERANKER_ENABLED")
     reranker_top_n: int = Field(default=20, alias="RERANKER_TOP_N")
+    reranker_model_path: str = Field(default="", alias="RERANKER_MODEL_PATH")
+    reranker_provider: str = Field(default="local", alias="RERANKER_PROVIDER")
 
     # --- RAG ---
     rag_search_top_k: int = Field(default=10, alias="RAG_SEARCH_TOP_K")

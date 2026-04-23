@@ -55,14 +55,18 @@ def _get_llm_client(settings: Settings = Depends(get_settings)) -> BaseLLMClient
 
 
 def _get_reranker(settings: Settings = Depends(get_settings)) -> BaseReranker | None:
-    if not settings.reranker_enabled or not settings.reranker_base_url:
+    if not settings.reranker_enabled:
         return None
-    from app.rag.reranking.tei_reranker import TEIReranker
-
-    return TEIReranker(
-        base_url=settings.reranker_base_url,
-        api_key=settings.reranker_api_key,
-    )
+    if settings.reranker_provider == "local" and settings.reranker_model_path:
+        from app.rag.reranking.local_reranker import LocalReranker
+        return LocalReranker(model_path=settings.reranker_model_path)
+    if settings.reranker_base_url:
+        from app.rag.reranking.tei_reranker import TEIReranker
+        return TEIReranker(
+            base_url=settings.reranker_base_url,
+            api_key=settings.reranker_api_key,
+        )
+    return None
 
 
 def _get_rag_service(
