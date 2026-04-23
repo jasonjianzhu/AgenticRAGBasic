@@ -100,8 +100,9 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e "backend[dev]"
 
-# 前端
-cd frontend && npm install
+# 前端（在项目根目录）
+cd ../frontend
+npm install
 ```
 
 ### 3. 配置
@@ -123,6 +124,8 @@ cd backend
 
 ## 启动方式
 
+> 以下命令中，后端命令在 `backend/` 目录下执行，前端命令在 `frontend/` 目录下执行。
+
 ### 场景 A：Agent 对话（数据分析 + 知识问答）
 
 最常用的场景，只需两个进程：
@@ -139,7 +142,8 @@ docker compose up -d
 ../.venv/bin/uvicorn app.main_agent:app --port 8002 --reload
 
 # 4. 前端（另一个终端）
-cd frontend && npm run dev
+cd ../frontend
+npm run dev
 ```
 
 访问 http://localhost:3000/agent
@@ -162,7 +166,8 @@ docker compose up -d
 ../.venv/bin/uvicorn app.main_rag:app --port 8001 --reload
 
 # 4. 前端（另一个终端）
-cd frontend && npm run dev
+cd ../frontend
+npm run dev
 ```
 
 访问 http://localhost:3000/chat（RAG 问答）或 http://localhost:3000/search（检索调试）
@@ -188,7 +193,8 @@ docker compose --profile knowledge up -d
 ../.venv/bin/python -m app.knowledge.jobs.worker
 
 # 5. 前端（另一个终端）
-cd frontend && npm run dev
+cd ../frontend
+npm run dev
 ```
 
 访问 http://localhost:3000/kb
@@ -213,7 +219,8 @@ docker compose --profile all up -d
 ../.venv/bin/python -m app.knowledge.jobs.worker
 
 # 6. 终端4：前端
-cd frontend && npm run dev
+cd ../frontend
+npm run dev
 ```
 
 > Agent 服务内部直接调用 RAG 代码（import，非 HTTP），不需要单独启动 RAG 服务（port 8001）。
