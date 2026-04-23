@@ -128,7 +128,7 @@ cd backend
 
 ### 场景 A：Agent 对话（数据分析 + 知识问答）
 
-最常用的场景，只需两个进程：
+最常用的场景：
 
 ```bash
 # 1. 基础设施（PG 主库 + Qdrant + 业务库）
@@ -138,10 +138,13 @@ docker compose up -d
 # 2. 数据库迁移（首次）
 ../.venv/bin/alembic upgrade head
 
-# 3. Agent 服务
+# 3. 知识库服务（Agent 页面需要获取知识库列表）
+../.venv/bin/uvicorn app.main_knowledge:app --port 8000 --reload
+
+# 4. Agent 服务（另一个终端）
 ../.venv/bin/uvicorn app.main_agent:app --port 8002 --reload
 
-# 4. 前端（另一个终端）
+# 5. 前端（另一个终端）
 cd ../frontend
 npm run dev
 ```
