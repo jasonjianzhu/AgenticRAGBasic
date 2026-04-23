@@ -25,9 +25,17 @@ from app.rag.services.rag_service import RAGService
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
+# Module-level singletons for heavy resources (models loaded once)
+_embedding_provider: EmbeddingProvider | None = None
+_reranker: BaseReranker | None = None
+_reranker_initialized = False
+
 
 def _get_embedding_provider() -> EmbeddingProvider:
-    return create_embedding_provider()
+    global _embedding_provider
+    if _embedding_provider is None:
+        _embedding_provider = create_embedding_provider()
+    return _embedding_provider
 
 
 def _get_vector_store(settings: Settings = Depends(get_settings)) -> VectorStore:
@@ -55,18 +63,23 @@ def _get_llm_client(settings: Settings = Depends(get_settings)) -> BaseLLMClient
 
 
 def _get_reranker(settings: Settings = Depends(get_settings)) -> BaseReranker | None:
+    global _reranker, _reranker_initialized
+    if _reranker_initialized:
+        return _reranker
+    _reranker_initialized = True
+
     if not settings.reranker_enabled:
         return None
     if settings.reranker_provider == "local" and settings.reranker_model_path:
         from app.rag.reranking.local_reranker import LocalReranker
-        return LocalReranker(model_path=settings.reranker_model_path)
-    if settings.reranker_base_url:
+        _reranker = LocalReranker(model_path=settings.reranker_model_path)
+    elif settings.reranker_base_url:
         from app.rag.reranking.tei_reranker import TEIReranker
-        return TEIReranker(
+        _reranker = TEIReranker(
             base_url=settings.reranker_base_url,
             api_key=settings.reranker_api_key,
         )
-    return None
+    return _reranker
 
 
 def _get_rag_service(
