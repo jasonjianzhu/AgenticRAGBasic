@@ -122,21 +122,6 @@ const RAGChatPage: React.FC = () => {
                 cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
               }
               last.content = cleaned;
-
-              // Align citations: only keep those actually referenced in the answer
-              if (last.citations && last.citations.length > 0 && cleaned) {
-                const referencedIndices = new Set<number>();
-                const refPattern = /\[(\d+)\]/g;
-                let match;
-                while ((match = refPattern.exec(cleaned)) !== null) {
-                  referencedIndices.add(parseInt(match[1], 10));
-                }
-                if (referencedIndices.size > 0) {
-                  last.citations = last.citations.filter((c) =>
-                    referencedIndices.has(c.index),
-                  );
-                }
-              }
               break;
             }
             case 'error':
@@ -262,31 +247,28 @@ const RAGChatPage: React.FC = () => {
                         <Space size={4}>
                           <FileTextOutlined />
                           <Text type="secondary" style={{ fontSize: 12 }}>
-                            引用来源 ({msg.citations.length})
+                            参考来源 ({msg.citations.length})
                           </Text>
                         </Space>
                       ),
                       children: (
                         <div>
-                          {msg.citations.map((cit) => (
+                          {msg.citations.map((cit, idx) => (
                             <div
-                              key={cit.index}
+                              key={idx}
                               style={{
                                 padding: '4px 0',
                                 borderBottom: '1px solid #f5f5f5',
                                 fontSize: 12,
                               }}
                             >
-                              <Tag color="blue" style={{ fontSize: 11 }}>
-                                [{cit.index}]
-                              </Tag>
                               <Text strong style={{ fontSize: 12 }}>
                                 {cit.document_title}
                               </Text>
                               {cit.page && (
                                 <Text type="secondary" style={{ fontSize: 11 }}>
                                   {' '}
-                                  p.{cit.page}
+                                  第{cit.page}页
                                 </Text>
                               )}
                               <Paragraph
