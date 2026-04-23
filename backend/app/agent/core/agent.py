@@ -58,9 +58,9 @@ def create_agent(
     """
     agent = Agent(
         model_name,
-        system_prompt=system_prompt,
+        instructions=system_prompt,
         deps_type=AgentDeps,
-        result_type=str,
+        output_type=str,
         retries=2,
     )
 

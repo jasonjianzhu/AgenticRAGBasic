@@ -44,6 +44,11 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
     if _agent is not None:
         return _agent
 
+    # PydanticAI openai: prefix uses OpenAI SDK, bridge our config to env vars
+    import os
+    os.environ.setdefault("OPENAI_API_KEY", settings.llm_api_key)
+    os.environ.setdefault("OPENAI_BASE_URL", settings.llm_base_url)
+
     # Load business DB schema for prompt injection
     try:
         from app.agent.sql.executor import _get_business_session_factory
@@ -169,7 +174,7 @@ class ChatService:
                         "max_tokens": self._settings.llm_max_tokens,
                     },
                 )
-                result_text = result.data
+                result_text = result.response.text
             except Exception as e:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)

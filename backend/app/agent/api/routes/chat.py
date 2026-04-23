@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -107,11 +106,6 @@ async def agent_chat(
 
     Supports: knowledge QA, SQL data analysis, chart generation, mixed queries.
     """
-    # Set OpenAI-compatible env vars for PydanticAI
-    # PydanticAI uses these when model is "openai:xxx"
-    os.environ.setdefault("OPENAI_API_KEY", settings.llm_api_key)
-    os.environ.setdefault("OPENAI_BASE_URL", settings.llm_base_url)
-
     session_id = None
     if payload.session_id:
         try:

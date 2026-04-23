@@ -83,7 +83,12 @@ class SQLValidator:
 
         from_seen = False
         for token in parsed.tokens:
-            if token.ttype is Keyword and token.value.upper() in ("FROM", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "CROSS JOIN"):
+            # Skip whitespace — don't reset from_seen
+            if token.ttype is sqlparse.tokens.Whitespace:
+                continue
+            if token.ttype is Keyword and token.value.upper() in (
+                "FROM", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "CROSS JOIN",
+            ):
                 from_seen = True
                 continue
             if from_seen:
