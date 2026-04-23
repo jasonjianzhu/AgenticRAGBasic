@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Input,
   Button,
@@ -227,7 +228,7 @@ const RAGChatPage: React.FC = () => {
                 <Spin size="small" />
               ) : msg.role === 'assistant' ? (
                 <div style={{ marginBottom: msg.citations?.length ? 8 : 0 }}>
-                  <ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {msg.content
                       .replace(/<think>[\s\S]*?<\/think>/g, '')
                       .replace(/<think>[\s\S]*/g, '')
