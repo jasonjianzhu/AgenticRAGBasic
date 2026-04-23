@@ -543,9 +543,7 @@ Agent 通过 `chart_tool` 输出标准化图表配置，前端使用 ECharts 渲
 
 | 工具 | 说明 | 输入 | 输出 |
 |------|------|------|------|
-| `rag_search_tool` | 检索知识库 | query, kb_ids, top_k, filters | 命中 chunk 列表 + trace |
-| `rag_answer_tool` | 知识库问答（含答案生成） | query, kb_ids, top_k | 带引用的文字答案 |
-| `document_lookup_tool` | 查询文档/知识库信息 | kb_id 或 doc_id | 文档元数据、知识库统计 |
+| `rag_search_tool` | 检索知识库，返回相关 chunk，Agent 自行总结回答 | query, kb_ids, top_k, filters | 命中 chunk 列表 + trace |
 | `sql_query_tool` | 查询业务数据库 | sql（LLM 生成） | 查询结果（行列数据） |
 | `chart_tool` | 生成图表配置 | chart_type, title, data | ECharts 配置 JSON |
 

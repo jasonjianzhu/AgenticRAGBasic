@@ -126,11 +126,9 @@ frontend/
 | P3-S2-01 | 定义 Agent system prompt | `prompts.py`（角色定义、工具使用指引、输出格式约束） | prompt 清晰描述 Agent 能力和工具用法 |
 | P3-S2-02 | 实现 PydanticAI Agent 定义 | `agent.py`（Agent 实例 + 工具注册） | Agent 可实例化，工具已注册 |
 | P3-S2-03 | 实现 `rag_search_tool` | 调用 `RAGService.search()` | 给定 query + kb_ids 返回检索结果 |
-| P3-S2-04 | 实现 `rag_answer_tool` | 调用 `RAGService` 生成带引用答案（非流式，收集完整结果） | 返回完整答案文本 + 引用列表 |
-| P3-S2-05 | 实现 `document_lookup_tool` | 查询知识库列表、文档信息 | 返回知识库统计或文档元数据 |
-| P3-S2-06 | 实现 Agent 对话 Service | `ChatService`（接收消息 → 调用 Agent → 流式输出 SSE 事件） | 知识问答链路端到端可用 |
-| P3-S2-07 | 实现 Agent 对话 API | POST `/agent/chat`（SSE 流式） | 发送消息，流式返回答案 + 工具调用过程 |
-| P3-S2-08 | 注册 Agent 路由到 main_agent.py | 路由挂载 | Agent 服务可启动，API 可访问 |
+| P3-S2-04 | 实现 Agent 对话 Service | `ChatService`（接收消息 → 调用 Agent → 流式输出 SSE 事件） | 知识问答链路端到端可用 |
+| P3-S2-05 | 实现 Agent 对话 API | POST `/agent/chat`（SSE 流式） | 发送消息，流式返回答案 + 工具调用过程 |
+| P3-S2-06 | 注册 Agent 路由到 main_agent.py | 路由挂载 | Agent 服务可启动，API 可访问 |
 
 ### Sprint 3：业务数据库连接与 SQL 工具（M6）
 
