@@ -146,7 +146,30 @@ cd frontend && npm run dev
 
 > 业务库（port 5433）首次启动时自动执行 `scripts/init_business_db.sql`，创建设备、指标、告警、维护记录表并灌入 mock 数据。
 
-### 场景 B：知识库管理（上传/解析/索引）
+### 场景 B：RAG 问答（独立验证检索效果）
+
+不需要 Agent，直接测试 RAG 检索和问答：
+
+```bash
+# 1. 基础设施（PG + Qdrant）
+cd backend
+docker compose up -d
+
+# 2. 数据库迁移（首次）
+../.venv/bin/alembic upgrade head
+
+# 3. RAG 服务
+../.venv/bin/uvicorn app.main_rag:app --port 8001 --reload
+
+# 4. 前端（另一个终端）
+cd frontend && npm run dev
+```
+
+访问 http://localhost:3000/chat（RAG 问答）或 http://localhost:3000/search（检索调试）
+
+> 需要 Qdrant 里已有向量数据。如果还没有，先走场景 C 上传文档。
+
+### 场景 C：知识库管理（上传/解析/索引）
 
 需要额外启动 Redis 和 Worker：
 
@@ -170,7 +193,7 @@ cd frontend && npm run dev
 
 访问 http://localhost:3000/kb
 
-### 场景 C：全部功能
+### 场景 D：全部功能
 
 ```bash
 # 1. 基础设施
