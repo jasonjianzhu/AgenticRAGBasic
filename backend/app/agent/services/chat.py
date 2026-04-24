@@ -13,6 +13,11 @@ from pydantic_ai.messages import (
     ModelResponse,
     TextPart,
     UserPromptPart,
+    PartStartEvent,
+    PartDeltaEvent,
+    TextPartDelta,
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +33,6 @@ from app.rag.services.rag_service import RAGService
 
 logger = get_logger(__name__)
 
-# Module-level Agent singleton (created once with schema)
 _agent: Agent | None = None
 _schema_description: str = ""
 
@@ -44,7 +48,6 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
     os.environ.setdefault("OPENAI_API_KEY", settings.llm_api_key)
     os.environ.setdefault("OPENAI_BASE_URL", settings.llm_base_url)
 
-    # Load business DB schema for prompt injection
     try:
         from app.agent.sql.executor import _get_business_session_factory
         factory = _get_business_session_factory(settings)
@@ -69,7 +72,6 @@ def _parse_allowed_tables(config_value: str) -> set[str] | None:
 
 
 def _clean_think_tags(text: str) -> str:
-    """Remove <think>...</think> blocks from LLM output."""
     cleaned = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()
     if "<think>" in cleaned:
         cleaned = re.sub(r"<think>[\s\S]*", "", cleaned).strip()
@@ -77,12 +79,11 @@ def _clean_think_tags(text: str) -> str:
 
 
 class ChatService:
-    """Orchestrates Agent chat with SSE streaming.
+    """Orchestrates Agent chat with real-time SSE streaming.
 
-    Uses agent.run() for reliable tool execution, then streams the
-    final text response as tokens for smooth frontend rendering.
-    Tool events (tool_start, tool_result, citation, chart) are
-    emitted in real-time during tool execution via the event queue.
+    Uses agent.run() with event_stream_handler for true streaming:
+    - Text tokens streamed in real-time as LLM generates them
+    - Tool events (tool_start, tool_result, citation, chart) emitted during execution
     """
 
     def __init__(
@@ -102,8 +103,8 @@ class ChatService:
         session_id: uuid.UUID | None = None,
         kb_ids: list[uuid.UUID] | None = None,
     ) -> AsyncIterator[dict]:
-        """Process a chat message and yield SSE events."""
-        # 1. Get or create session
+        """Process a chat message and yield SSE events with real-time streaming."""
+        # 1. Session management
         if session_id:
             session = await self._session_service.get_session(session_id)
             if not session:
@@ -113,23 +114,22 @@ class ChatService:
             session = await self._session_service.create_session()
             session_id = session.id
 
-        # 2. Save user message
         await self._session_service.add_message(session_id, role="user", content=message)
 
         msg_count = await self._session_service.get_message_count(session_id)
         if msg_count <= 1:
             await self._session_service.update_title_from_first_message(session_id, message)
 
-        # 3. Build message history
+        # 2. Build history
         history = await self._session_service.get_context_messages(session_id)
 
-        # 4. Event queue for tool callbacks
+        # 3. Event queue — both tool callbacks and LLM stream events go here
         event_queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
         async def emit_event(event_type: str, data: Any) -> None:
             await event_queue.put({"event": event_type, "data": data})
 
-        # 5. Build deps
+        # 4. Build deps
         sql_executor = SQLExecutor(self._settings)
         allowed = _parse_allowed_tables(self._settings.business_db_allowed_tables)
         sql_validator = SQLValidator(
@@ -144,11 +144,38 @@ class ChatService:
             emit_event=emit_event,
         )
 
-        # 6. Get Agent
+        # 5. Get Agent
         agent = await _get_or_create_agent(self._settings)
-
-        # 7. Run Agent in background (agent.run for reliable tool execution)
         message_history = self._build_message_history(history[:-1] if history else [])
+
+        # 6. Event stream handler — receives LLM streaming events in real-time
+        in_think = False
+
+        async def stream_handler(run_ctx, event_stream):
+            nonlocal in_think
+            async for event in event_stream:
+                if isinstance(event, PartDeltaEvent):
+                    if isinstance(event.delta, TextPartDelta):
+                        content = event.delta.content_delta
+                        # Filter <think> tags
+                        if "<think>" in content:
+                            in_think = True
+                            before = content.split("<think>")[0]
+                            if before:
+                                await event_queue.put({"event": "token", "data": {"content": before}})
+                            continue
+                        if "</think>" in content:
+                            in_think = False
+                            after = content.split("</think>")[-1]
+                            if after:
+                                await event_queue.put({"event": "token", "data": {"content": after}})
+                            continue
+                        if in_think:
+                            continue
+                        if content:
+                            await event_queue.put({"event": "token", "data": {"content": content}})
+
+        # 7. Run Agent in background with streaming
         result_text = ""
         agent_error = None
 
@@ -163,15 +190,14 @@ class ChatService:
                         "temperature": self._settings.llm_temperature,
                         "max_tokens": self._settings.llm_max_tokens,
                     },
+                    event_stream_handler=stream_handler,
                 )
                 result_text = result.response.text or ""
-                logger.info("agent_run_complete", text_length=len(result_text), text_preview=result_text[:100])
             except Exception as e:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)
             finally:
-                # Save assistant message with a fresh DB session
-                logger.info("agent_save_attempt", has_text=bool(result_text), text_length=len(result_text))
+                # Save assistant message with independent DB session
                 if result_text:
                     try:
                         from app.common.db.session import async_session_factory
@@ -186,14 +212,13 @@ class ChatService:
                             )
                             save_session.add(msg)
                             await save_session.commit()
-                            logger.info("agent_message_saved", session_id=str(session_id))
                     except Exception as e:
-                        logger.error("save_assistant_message_error", error=str(e), exc_info=True)
+                        logger.error("save_assistant_message_error", error=str(e))
                 await event_queue.put(None)  # signal done
 
         agent_task = asyncio.create_task(run_agent())
 
-        # 8. Yield tool events as they come in (real-time)
+        # 8. Yield all events (tool events + streaming tokens)
         while True:
             event = await event_queue.get()
             if event is None:
@@ -202,21 +227,14 @@ class ChatService:
 
         await agent_task
 
-        # 9. Stream the final text as tokens
+        # 9. Error
         if agent_error:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
-        elif result_text:
-            cleaned = _clean_think_tags(result_text)
-            # Stream in small chunks for smooth rendering
-            chunk_size = 8
-            for i in range(0, len(cleaned), chunk_size):
-                yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
 
         # 10. Done
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 
     def _build_message_history(self, history: list[dict]) -> list[ModelMessage]:
-        """Convert chat history to PydanticAI ModelMessage format."""
         messages: list[ModelMessage] = []
         for msg in history:
             role = msg["role"]

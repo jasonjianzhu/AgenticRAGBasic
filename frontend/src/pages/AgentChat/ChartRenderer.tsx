@@ -9,60 +9,59 @@ interface Props {
 const ChartRenderer: React.FC<Props> = React.memo(({ option }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
-  // Stabilize option reference to avoid unnecessary re-inits
   const optionStr = useMemo(() => JSON.stringify(option), [option]);
 
   useEffect(() => {
-    if (!chartRef.current) return;
-    if (option.chart_type === 'table') return;
+    const el = chartRef.current;
+    if (!el || option.chart_type === 'table') return;
 
-    // Small delay to ensure DOM is laid out
-    const timer = setTimeout(() => {
-      if (!chartRef.current) return;
+    // Wait for container to have dimensions
+    const initChart = () => {
+      if (!el.clientWidth) return;
 
       if (instanceRef.current) {
         instanceRef.current.dispose();
       }
 
-      const instance = echarts.init(chartRef.current);
+      const instance = echarts.init(el);
       instanceRef.current = instance;
       instance.setOption(option as echarts.EChartsOption, true);
-    }, 50);
-
-    return () => {
-      clearTimeout(timer);
     };
-  }, [optionStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Resize handler
-  useEffect(() => {
-    const handleResize = () => instanceRef.current?.resize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    // Use ResizeObserver to detect when container gets dimensions
+    observerRef.current = new ResizeObserver(() => {
+      if (el.clientWidth > 0) {
+        if (!instanceRef.current) {
+          initChart();
+        } else {
+          instanceRef.current.resize();
+        }
+      }
+    });
+    observerRef.current.observe(el);
 
-  // Cleanup on unmount
-  useEffect(() => {
+    // Also try immediate init
+    requestAnimationFrame(initChart);
+
     return () => {
+      observerRef.current?.disconnect();
       instanceRef.current?.dispose();
       instanceRef.current = null;
     };
-  }, []);
+  }, [optionStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (option.chart_type === 'table') {
-    return null;
-  }
+  if (option.chart_type === 'table') return null;
 
   return (
     <div
       ref={chartRef}
       style={{
         width: '100%',
-        minWidth: 300,
+        minWidth: 280,
         height: 320,
         marginBottom: 8,
-        border: '1px solid #f0f0f0',
         borderRadius: 8,
         background: '#fff',
       }}

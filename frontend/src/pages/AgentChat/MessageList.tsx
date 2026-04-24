@@ -6,6 +6,7 @@ import { RobotOutlined, UserOutlined } from '@ant-design/icons';
 import type { AgentMessage } from '@/types/agent';
 import ToolCallDisplay from './ToolCallDisplay';
 import ChartRenderer from './ChartRenderer';
+import CitationPanel from './CitationPanel';
 
 const { Paragraph, Text } = Typography;
 
@@ -131,6 +132,11 @@ const MessageList: React.FC<Props> = ({ messages }) => {
               <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                 {msg.content}
               </div>
+            )}
+
+            {/* Citations */}
+            {msg.citations && msg.citations.length > 0 && (
+              <CitationPanel citations={msg.citations} />
             )}
 
             {/* Error */}
