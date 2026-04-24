@@ -40,48 +40,62 @@ const ChatInput: React.FC<Props> = ({
   return (
     <div
       style={{
-        padding: '12px 16px',
-        borderTop: '1px solid #f0f0f0',
-        background: '#fff',
+        padding: '16px 32px 20px',
+        background: 'rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(12px)',
+        borderTop: '1px solid rgba(54, 207, 201, 0.1)',
       }}
     >
-      <div style={{ marginBottom: 8 }}>
-        <Select
-          mode="multiple"
-          placeholder="选择知识库（可选，用于知识问答）"
-          value={selectedKBs}
-          onChange={onKBChange}
-          style={{ width: '100%' }}
-          size="small"
-          options={kbs.map((kb) => ({ label: kb.name, value: kb.id }))}
-          allowClear
-        />
-      </div>
-      <Space.Compact style={{ width: '100%' }}>
+      {kbs.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <Select
+            mode="multiple"
+            placeholder="选择知识库（可选，用于知识问答）"
+            value={selectedKBs}
+            onChange={onKBChange}
+            style={{ width: '100%' }}
+            size="small"
+            options={kbs.map((kb) => ({ label: kb.name, value: kb.id }))}
+            allowClear
+          />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
         <TextArea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入问题，按 Enter 发送（支持知识问答和数据分析）"
-          autoSize={{ minRows: 1, maxRows: 4 }}
+          placeholder="输入问题，按 Enter 发送..."
+          autoSize={{ minRows: 1, maxRows: 5 }}
           disabled={streaming}
-          style={{ flex: 1 }}
+          style={{
+            flex: 1,
+            borderRadius: 12,
+            padding: '10px 14px',
+            fontSize: 14,
+            background: 'rgba(255, 255, 255, 0.9)',
+            border: '1px solid rgba(54, 207, 201, 0.2)',
+          }}
         />
         {streaming ? (
-          <Button icon={<StopOutlined />} onClick={onStop} danger>
-            停止
-          </Button>
+          <Button
+            icon={<StopOutlined />}
+            onClick={onStop}
+            danger
+            size="large"
+            style={{ borderRadius: 12, height: 42, width: 42 }}
+          />
         ) : (
           <Button
             type="primary"
             icon={<SendOutlined />}
             onClick={handleSend}
             disabled={!query.trim()}
-          >
-            发送
-          </Button>
+            size="large"
+            style={{ borderRadius: 12, height: 42, width: 42 }}
+          />
         )}
-      </Space.Compact>
+      </div>
     </div>
   );
 };

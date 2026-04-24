@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Layout, message } from 'antd';
+import { message } from 'antd';
 import { listKBs } from '@/api/client';
 import { agentChatStream, getSession } from '@/api/agent';
 import type { KBResponse } from '@/types';
@@ -215,13 +215,24 @@ const AgentChatPage: React.FC = () => {
   };
 
   return (
-    <Layout style={{ height: '100%' }}>
+    <div style={{ display: 'flex', width: '100%', height: '100%', padding: 16, gap: 12 }}>
       <SessionSidebar
         currentSessionId={sessionId}
         onNewSession={handleNewSession}
         onSelectSession={handleSelectSession}
       />
-      <Content style={{ display: 'flex', flexDirection: 'column', padding: 0 }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(10px)',
+          borderRadius: 16,
+          border: '1px solid rgba(54, 207, 201, 0.1)',
+          overflow: 'hidden',
+        }}
+      >
         <MessageList messages={messages} />
         <ChatInput
           kbs={kbs}
@@ -231,8 +242,8 @@ const AgentChatPage: React.FC = () => {
           onStop={handleStop}
           streaming={streaming}
         />
-      </Content>
-    </Layout>
+      </div>
+    </div>
   );
 };
 

@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Layout, Button, List, Typography, Popconfirm, Empty, Spin } from 'antd';
+import { Button, List, Typography, Popconfirm, Empty, Spin } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { listSessions, deleteSession, getSession } from '@/api/agent';
 import type { SessionItem, AgentMessage } from '@/types/agent';
 
-const { Sider } = Layout;
 const { Text } = Typography;
 
 interface Props {
@@ -67,74 +66,106 @@ const SessionSidebar: React.FC<Props> = ({
   };
 
   return (
-    <Sider
-      width={240}
+    <div
       style={{
-        background: '#fafafa',
-        borderRight: '1px solid #f0f0f0',
+        width: 260,
+        background: 'rgba(255, 255, 255, 0.65)',
+        backdropFilter: 'blur(10px)',
+        borderRight: '1px solid rgba(54, 207, 201, 0.12)',
         display: 'flex',
         flexDirection: 'column',
+        borderRadius: '16px 0 0 16px',
       }}
     >
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
+      <div style={{ padding: '16px 16px 12px' }}>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           block
+          size="large"
+          style={{
+            borderRadius: 10,
+            height: 42,
+            fontWeight: 500,
+          }}
           onClick={onNewSession}
         >
           新对话
         </Button>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 24 }}>
             <Spin size="small" />
           </div>
         ) : sessions.length === 0 ? (
-          <Empty description="暂无会话" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          <Empty
+            description="暂无会话"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            style={{ marginTop: 40 }}
+          />
         ) : (
           <List
             size="small"
             dataSource={sessions}
             renderItem={(item) => (
-              <List.Item
+              <div
                 style={{
-                  padding: '8px 16px',
+                  padding: '10px 12px',
+                  marginBottom: 4,
                   cursor: 'pointer',
+                  borderRadius: 10,
                   background:
-                    item.id === currentSessionId ? '#e6f4ff' : 'transparent',
+                    item.id === currentSessionId
+                      ? 'rgba(54, 207, 201, 0.12)'
+                      : 'transparent',
+                  transition: 'background 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
                 onClick={() => handleSelect(item.id)}
-                actions={[
-                  <Popconfirm
-                    title="删除此会话？"
-                    onConfirm={(e) => {
-                      e?.stopPropagation();
-                      handleDelete(item.id);
-                    }}
-                    onCancel={(e) => e?.stopPropagation()}
-                  >
-                    <DeleteOutlined
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ color: '#999', fontSize: 12 }}
-                    />
-                  </Popconfirm>,
-                ]}
+                onMouseEnter={(e) => {
+                  if (item.id !== currentSessionId) {
+                    e.currentTarget.style.background = 'rgba(54, 207, 201, 0.06)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (item.id !== currentSessionId) {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
               >
                 <Text
                   ellipsis
-                  style={{ fontSize: 13, maxWidth: 160 }}
+                  style={{
+                    fontSize: 13,
+                    maxWidth: 180,
+                    color: item.id === currentSessionId ? '#08979c' : '#595959',
+                  }}
                   title={item.title}
                 >
                   {item.title}
                 </Text>
-              </List.Item>
+                <Popconfirm
+                  title="删除此会话？"
+                  onConfirm={(e) => {
+                    e?.stopPropagation();
+                    handleDelete(item.id);
+                  }}
+                  onCancel={(e) => e?.stopPropagation()}
+                >
+                  <DeleteOutlined
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ color: '#bfbfbf', fontSize: 12 }}
+                  />
+                </Popconfirm>
+              </div>
             )}
           />
         )}
       </div>
-    </Sider>
+    </div>
   );
 };
 

@@ -53,3 +53,54 @@ mark {
   padding: 0 2px;
   border-radius: 2px;
 }
+
+/* Agent markdown styling */
+.agent-markdown {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.agent-markdown p {
+  margin-bottom: 8px;
+}
+
+.agent-markdown h2,
+.agent-markdown h3 {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  color: #08979c;
+}
+
+.agent-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.agent-markdown th,
+.agent-markdown td {
+  border: 1px solid #d9d9d9;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.agent-markdown th {
+  background: #f0faf9;
+  font-weight: 600;
+  color: #08979c;
+}
+
+.agent-markdown code {
+  background: #f0faf9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.agent-markdown pre {
+  background: #f6f8fa;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
