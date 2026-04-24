@@ -169,6 +169,17 @@ class ChatService:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)
             finally:
+                # Save assistant message immediately (even if client disconnects)
+                if result_text:
+                    try:
+                        await self._session_service.add_message(
+                            session_id,
+                            role="assistant",
+                            content=_clean_think_tags(result_text),
+                            message_type="text",
+                        )
+                    except Exception as e:
+                        logger.error("save_assistant_message_error", error=str(e))
                 await event_queue.put(None)  # signal done
 
         agent_task = asyncio.create_task(run_agent())
@@ -192,15 +203,7 @@ class ChatService:
             for i in range(0, len(cleaned), chunk_size):
                 yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
 
-        # 10. Save assistant message
-        await self._session_service.add_message(
-            session_id,
-            role="assistant",
-            content=_clean_think_tags(result_text) if result_text else "",
-            message_type="text",
-        )
-
-        # 11. Done
+        # 10. Done
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 
     def _build_message_history(self, history: list[dict]) -> list[ModelMessage]:
