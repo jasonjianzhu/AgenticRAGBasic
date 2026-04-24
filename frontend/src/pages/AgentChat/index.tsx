@@ -163,8 +163,14 @@ const AgentChatPage: React.FC = () => {
                 last.content = (last.content || '') + token;
                 break;
               }
+              case 'thinking': {
+                const thinkToken = (event.data as { content: string }).content;
+                last.thinking = (last.thinking || '') + thinkToken;
+                break;
+              }
               case 'done': {
                 last.loading = false;
+                // Clean any residual think tags in content
                 let cleaned = last.content
                   .replace(/<think>[\s\S]*?<\/think>/g, '')
                   .trim();
@@ -172,6 +178,8 @@ const AgentChatPage: React.FC = () => {
                   cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
                 }
                 last.content = cleaned;
+                // Clear thinking on done
+                last.thinking = undefined;
                 const sid = (event.data as { session_id?: string }).session_id;
                 if (sid) setSessionId(sid);
                 break;

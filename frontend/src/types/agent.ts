@@ -4,6 +4,7 @@
 
 export type AgentSSEEventType =
   | 'token'
+  | 'thinking'
   | 'tool_start'
   | 'tool_result'
   | 'citation'
@@ -114,6 +115,7 @@ export interface AgentChatRequest {
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
+  thinking?: string;
   loading?: boolean;
   error?: string;
   toolCalls?: ToolCallInfo[];

@@ -198,10 +198,13 @@ class ChatService:
                         continue
 
                     if _has_thinking_parts:
-                        # Provider separates thinking, emit text directly
-                        await event_queue.put({"event": "token", "data": {"content": content}})
+                        # Provider separates thinking
+                        if event.index in _thinking_indices:
+                            await event_queue.put({"event": "thinking", "data": {"content": content}})
+                        else:
+                            await event_queue.put({"event": "token", "data": {"content": content}})
                     else:
-                        # OpenAI provider: need buffer filtering for <think> tags
+                        # OpenAI provider: detect <think> tags via buffer
                         _buf += content
                         await _flush_buf()
 
@@ -215,10 +218,16 @@ class ChatService:
                 if _in_think:
                     end = _buf.find("</think>")
                     if end != -1:
+                        # Emit thinking content before </think>
+                        think_content = _buf[:end]
+                        if think_content:
+                            await event_queue.put({"event": "thinking", "data": {"content": think_content}})
                         _buf = _buf[end + 8:]
                         _in_think = False
                     else:
+                        # Still in think block, emit as thinking but keep tail
                         if len(_buf) > 8:
+                            await event_queue.put({"event": "thinking", "data": {"content": _buf[:-8]}})
                             _buf = _buf[-8:]
                         break
                 else:

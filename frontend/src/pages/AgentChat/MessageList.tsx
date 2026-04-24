@@ -116,6 +116,26 @@ const MessageList: React.FC<Props> = ({ messages }) => {
               <ChartRenderer key={`chart-${i}`} option={chart} />
             ))}
 
+            {/* Thinking indicator (shown during generation, removed on done) */}
+            {msg.thinking && (
+              <div
+                style={{
+                  padding: '6px 10px',
+                  marginBottom: 6,
+                  background: 'rgba(54, 207, 201, 0.06)',
+                  borderRadius: 8,
+                  borderLeft: '3px solid #36cfc9',
+                  fontSize: 12,
+                  color: '#8c8c8c',
+                  fontStyle: 'italic',
+                  maxHeight: 120,
+                  overflow: 'hidden',
+                }}
+              >
+                💭 {msg.thinking.length > 200 ? msg.thinking.slice(-200) + '...' : msg.thinking}
+              </div>
+            )}
+
             {/* Content */}
             {msg.loading && !msg.content ? (
               <Spin size="small" />
