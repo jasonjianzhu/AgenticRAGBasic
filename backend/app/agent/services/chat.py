@@ -155,20 +155,20 @@ class ChatService:
         async def stream_handler(run_ctx, event_stream):
             async for event in event_stream:
                 if isinstance(event, PartStartEvent):
-                    # Track text parts vs thinking parts
                     part = event.part
-                    part_kind = getattr(part, 'part_kind', '')
+                    part_kind = getattr(part, 'part_kind', 'unknown')
+                    logger.info("stream_part_start", index=event.index, part_kind=part_kind, part_type=type(part).__name__)
                     if part_kind == 'text':
                         active_text_indices.add(event.index)
-                    # Skip thinking parts entirely
 
                 elif isinstance(event, PartDeltaEvent):
                     if isinstance(event.delta, TextPartDelta):
-                        # Only emit if this is a text part (not thinking)
-                        if event.index in active_text_indices:
-                            content = event.delta.content_delta
-                            if content:
-                                await event_queue.put({"event": "token", "data": {"content": content}})
+                        is_text = event.index in active_text_indices
+                        content = event.delta.content_delta
+                        if not is_text:
+                            logger.info("stream_filtered_thinking", index=event.index, preview=content[:50])
+                        if is_text and content:
+                            await event_queue.put({"event": "token", "data": {"content": content}})
 
         # 7. Run Agent in background with streaming
         result_text = ""
