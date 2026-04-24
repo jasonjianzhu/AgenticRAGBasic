@@ -78,10 +78,13 @@ class SQLExecutor:
     @staticmethod
     def _serialize_row(row) -> list[Any]:
         """Convert a row to a list of JSON-serializable values."""
+        from decimal import Decimal
         result = []
         for val in row:
             if hasattr(val, "isoformat"):
                 result.append(val.isoformat())
+            elif isinstance(val, Decimal):
+                result.append(float(val))
             elif val is None:
                 result.append(None)
             else:
