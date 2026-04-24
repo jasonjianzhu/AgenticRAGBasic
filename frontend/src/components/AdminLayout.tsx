@@ -43,7 +43,7 @@ const AdminLayout: React.FC = () => {
           }}
         >
           <Text strong style={{ color: '#36cfc9', fontSize: 18, letterSpacing: 1 }}>
-            晶科智能运维
+            智能问答平台
           </Text>
         </div>
         <Menu

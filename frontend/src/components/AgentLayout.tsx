@@ -53,7 +53,7 @@ const AgentLayout: React.FC = () => {
           </div>
           <div>
             <Text strong style={{ fontSize: 17, color: '#08979c', letterSpacing: 0.5 }}>
-              晶科智能运维
+              智能问答平台
             </Text>
             <Text style={{ fontSize: 12, color: '#8c8c8c', marginLeft: 8 }}>
               储能智能助手

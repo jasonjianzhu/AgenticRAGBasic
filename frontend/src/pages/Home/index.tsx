@@ -95,7 +95,7 @@ const HomePage: React.FC = () => {
             marginBottom: 8,
           }}
         >
-          晶科智能运维测试实验平台
+          知识管理智能问答测试平台
         </div>
         <div style={{ fontSize: 15, color: '#8c8c8c' }}>
           知识管理 · 智能检索 · 数据分析 · Agent 对话
@@ -106,10 +106,10 @@ const HomePage: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          flexWrap: 'wrap',
+          flexWrap: 'nowrap',
           gap: 20,
           justifyContent: 'center',
-          maxWidth: 900,
+          maxWidth: 1100,
         }}
       >
         {modules.map((m) => (
@@ -183,7 +183,7 @@ const HomePage: React.FC = () => {
 
       {/* Footer */}
       <div style={{ marginTop: 56, color: '#bfbfbf', fontSize: 12 }}>
-        Powered by AgenticRAG
+        Powered by Opus/Codex/Minimax
       </div>
     </div>
   );
