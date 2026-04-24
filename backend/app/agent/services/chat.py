@@ -171,23 +171,24 @@ class ChatService:
                 agent_error = str(e)
             finally:
                 # Save assistant message with a fresh DB session
-                # (the request-scoped session may be closed if client disconnected)
                 logger.info("agent_save_attempt", has_text=bool(result_text), text_length=len(result_text))
                 if result_text:
                     try:
                         from app.common.db.session import async_session_factory
+                        from app.common.db.models import ChatMessage
                         async with async_session_factory() as save_session:
-                            from app.agent.services.session import SessionService
-                            save_svc = SessionService(save_session, self._settings)
-                            await save_svc.add_message(
-                                session_id,
+                            msg = ChatMessage(
+                                session_id=session_id,
                                 role="assistant",
                                 content=_clean_think_tags(result_text),
                                 message_type="text",
+                                metadata_={},
                             )
+                            save_session.add(msg)
                             await save_session.commit()
+                            logger.info("agent_message_saved", session_id=str(session_id))
                     except Exception as e:
-                        logger.error("save_assistant_message_error", error=str(e))
+                        logger.error("save_assistant_message_error", error=str(e), exc_info=True)
                 await event_queue.put(None)  # signal done
 
         agent_task = asyncio.create_task(run_agent())
