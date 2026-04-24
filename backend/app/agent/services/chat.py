@@ -149,62 +149,26 @@ class ChatService:
         message_history = self._build_message_history(history[:-1] if history else [])
 
         # 6. Event stream handler — receives LLM streaming events in real-time
-        # Buffer approach: accumulate text, strip <think>...</think> blocks before emitting
-        think_buffer = ""
-        in_think = False
+        # Filter out thinking/reasoning content, only emit text content
+        active_text_indices: set[int] = set()  # track which part indices are text (not thinking)
 
         async def stream_handler(run_ctx, event_stream):
-            nonlocal in_think, think_buffer
             async for event in event_stream:
-                if isinstance(event, PartDeltaEvent):
+                if isinstance(event, PartStartEvent):
+                    # Track text parts vs thinking parts
+                    part = event.part
+                    part_kind = getattr(part, 'part_kind', '')
+                    if part_kind == 'text':
+                        active_text_indices.add(event.index)
+                    # Skip thinking parts entirely
+
+                elif isinstance(event, PartDeltaEvent):
                     if isinstance(event.delta, TextPartDelta):
-                        content = event.delta.content_delta
-                        think_buffer += content
-
-                        # Process buffer
-                        while think_buffer:
-                            if in_think:
-                                # Looking for </think>
-                                end_idx = think_buffer.find("</think>")
-                                if end_idx != -1:
-                                    # Found end tag, discard everything up to and including it
-                                    think_buffer = think_buffer[end_idx + 8:]
-                                    in_think = False
-                                else:
-                                    # Haven't found end yet, might be partial — keep buffering
-                                    # But if buffer is getting large, it's all think content, discard
-                                    if len(think_buffer) > 200:
-                                        think_buffer = ""
-                                    break
-                            else:
-                                # Looking for <think>
-                                start_idx = think_buffer.find("<think>")
-                                if start_idx != -1:
-                                    # Emit everything before <think>
-                                    before = think_buffer[:start_idx]
-                                    if before:
-                                        await event_queue.put({"event": "token", "data": {"content": before}})
-                                    think_buffer = think_buffer[start_idx + 7:]
-                                    in_think = True
-                                elif "<" in think_buffer and think_buffer.rstrip().endswith("<"):
-                                    # Might be start of <think>, hold back the '<'
-                                    safe = think_buffer[:think_buffer.rfind("<")]
-                                    if safe:
-                                        await event_queue.put({"event": "token", "data": {"content": safe}})
-                                    think_buffer = think_buffer[len(safe):]
-                                    break
-                                elif think_buffer.endswith("<thin") or think_buffer.endswith("<thi") or think_buffer.endswith("<th") or think_buffer.endswith("<t"):
-                                    # Partial tag, hold buffer
-                                    break
-                                else:
-                                    # No think tag, emit all
-                                    await event_queue.put({"event": "token", "data": {"content": think_buffer}})
-                                    think_buffer = ""
-                                    break
-
-            # Flush remaining buffer
-            if think_buffer and not in_think:
-                await event_queue.put({"event": "token", "data": {"content": think_buffer}})
+                        # Only emit if this is a text part (not thinking)
+                        if event.index in active_text_indices:
+                            content = event.delta.content_delta
+                            if content:
+                                await event_queue.put({"event": "token", "data": {"content": content}})
 
         # 7. Run Agent in background with streaming
         result_text = ""
