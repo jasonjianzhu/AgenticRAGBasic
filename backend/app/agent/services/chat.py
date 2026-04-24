@@ -13,11 +13,8 @@ from pydantic_ai.messages import (
     ModelResponse,
     TextPart,
     UserPromptPart,
-    PartStartEvent,
     PartDeltaEvent,
     TextPartDelta,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -149,26 +146,57 @@ class ChatService:
         message_history = self._build_message_history(history[:-1] if history else [])
 
         # 6. Event stream handler — receives LLM streaming events in real-time
-        # Filter out thinking/reasoning content, only emit text content
-        active_text_indices: set[int] = set()  # track which part indices are text (not thinking)
+        # MiniMax via OpenAI-compatible API puts <think>...</think> in text content
+        # Use buffer to reliably strip thinking blocks even when tokens arrive split
+        _buf = ""
+        _in_think = False
 
         async def stream_handler(run_ctx, event_stream):
+            nonlocal _buf, _in_think
             async for event in event_stream:
-                if isinstance(event, PartStartEvent):
-                    part = event.part
-                    part_kind = getattr(part, 'part_kind', 'unknown')
-                    logger.info("stream_part_start", index=event.index, part_kind=part_kind, part_type=type(part).__name__)
-                    if part_kind == 'text':
-                        active_text_indices.add(event.index)
+                if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+                    _buf += event.delta.content_delta
+                    await _flush_buf()
 
-                elif isinstance(event, PartDeltaEvent):
-                    if isinstance(event.delta, TextPartDelta):
-                        is_text = event.index in active_text_indices
-                        content = event.delta.content_delta
-                        if not is_text:
-                            logger.info("stream_filtered_thinking", index=event.index, preview=content[:50])
-                        if is_text and content:
-                            await event_queue.put({"event": "token", "data": {"content": content}})
+            # Final flush
+            await _flush_buf(force=True)
+
+        async def _flush_buf(force: bool = False):
+            nonlocal _buf, _in_think
+            while _buf:
+                if _in_think:
+                    end = _buf.find("</think>")
+                    if end != -1:
+                        _buf = _buf[end + 8:]
+                        _in_think = False
+                    else:
+                        # Still in think block, discard buffer but keep last 8 chars
+                        # (in case "</think>" is split across chunks)
+                        if len(_buf) > 8:
+                            _buf = _buf[-8:]
+                        break
+                else:
+                    start = _buf.find("<think>")
+                    if start != -1:
+                        # Emit text before <think>
+                        if start > 0:
+                            await event_queue.put({"event": "token", "data": {"content": _buf[:start]}})
+                        _buf = _buf[start + 7:]
+                        _in_think = True
+                    elif not force and len(_buf) < 7:
+                        # Buffer too short, might be partial "<think", wait for more
+                        break
+                    elif not force and _buf[-1] == "<":
+                        # Ends with '<', might be start of tag, hold it
+                        if len(_buf) > 1:
+                            await event_queue.put({"event": "token", "data": {"content": _buf[:-1]}})
+                            _buf = "<"
+                        break
+                    else:
+                        # No think tag, emit all
+                        await event_queue.put({"event": "token", "data": {"content": _buf}})
+                        _buf = ""
+                        break
 
         # 7. Run Agent in background with streaming
         result_text = ""
