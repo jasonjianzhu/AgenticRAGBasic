@@ -255,7 +255,7 @@ class ChatService:
                         "temperature": self._settings.llm_temperature,
                         "max_tokens": self._settings.llm_max_tokens,
                     },
-                    usage_limits=UsageLimits(tool_calls_limit=6),
+                    usage_limits=UsageLimits(tool_calls_limit=10),
                     event_stream_handler=stream_handler,
                 )
                 result_text = result.response.text or ""
