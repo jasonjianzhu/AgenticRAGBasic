@@ -40,8 +40,10 @@ const AgentChatPage: React.FC = () => {
   // Restore last session on mount
   useEffect(() => {
     const savedId = localStorage.getItem(STORAGE_KEY);
-    if (savedId) {
-      getSession(savedId)
+    if (!savedId) return;
+
+    const loadSession = (id: string) => {
+      getSession(id)
         .then((detail) => {
           const msgs: AgentMessage[] = detail.messages
             .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
@@ -53,13 +55,21 @@ const AgentChatPage: React.FC = () => {
               dataTables: [],
               charts: [],
             }));
-          setSessionId(savedId);
+          setSessionId(id);
           setMessages(msgs);
+
+          // If last message is from user (assistant still generating), retry after delay
+          const lastMsg = detail.messages[detail.messages.length - 1];
+          if (lastMsg && lastMsg.role === 'user') {
+            setTimeout(() => loadSession(id), 3000);
+          }
         })
         .catch(() => {
           localStorage.removeItem(STORAGE_KEY);
         });
-    }
+    };
+
+    loadSession(savedId);
   }, []);
 
   // Persist sessionId to localStorage
