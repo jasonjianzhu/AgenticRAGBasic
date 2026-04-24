@@ -169,15 +169,21 @@ class ChatService:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)
             finally:
-                # Save assistant message immediately (even if client disconnects)
+                # Save assistant message with a fresh DB session
+                # (the request-scoped session may be closed if client disconnected)
                 if result_text:
                     try:
-                        await self._session_service.add_message(
-                            session_id,
-                            role="assistant",
-                            content=_clean_think_tags(result_text),
-                            message_type="text",
-                        )
+                        from app.common.db.session import async_session_factory
+                        async with async_session_factory() as save_session:
+                            from app.agent.services.session import SessionService
+                            save_svc = SessionService(save_session, self._settings)
+                            await save_svc.add_message(
+                                session_id,
+                                role="assistant",
+                                content=_clean_think_tags(result_text),
+                                message_type="text",
+                            )
+                            await save_session.commit()
                     except Exception as e:
                         logger.error("save_assistant_message_error", error=str(e))
                 await event_queue.put(None)  # signal done
