@@ -165,12 +165,14 @@ class ChatService:
                     },
                 )
                 result_text = result.response.text or ""
+                logger.info("agent_run_complete", text_length=len(result_text), text_preview=result_text[:100])
             except Exception as e:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)
             finally:
                 # Save assistant message with a fresh DB session
                 # (the request-scoped session may be closed if client disconnected)
+                logger.info("agent_save_attempt", has_text=bool(result_text), text_length=len(result_text))
                 if result_text:
                     try:
                         from app.common.db.session import async_session_factory
