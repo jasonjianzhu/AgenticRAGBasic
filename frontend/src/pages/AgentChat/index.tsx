@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Layout, message } from 'antd';
 import { listKBs } from '@/api/client';
-import { agentChatStream } from '@/api/agent';
+import { agentChatStream, getSession } from '@/api/agent';
 import type { KBResponse } from '@/types';
 import type {
   AgentMessage,
@@ -19,6 +19,8 @@ import MessageList from './MessageList';
 
 const { Content } = Layout;
 
+const STORAGE_KEY = 'agent_current_session';
+
 const AgentChatPage: React.FC = () => {
   const [kbs, setKBs] = useState<KBResponse[]>([]);
   const [selectedKBs, setSelectedKBs] = useState<string[]>([]);
@@ -27,12 +29,47 @@ const AgentChatPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
   const abortRef = useRef<AbortController | null>(null);
 
+  // Load KBs
   useEffect(() => {
     listKBs().then((res) => {
       setKBs(res.items);
       if (res.items.length > 0) setSelectedKBs([res.items[0].id]);
-    });
+    }).catch(() => {});
   }, []);
+
+  // Restore last session on mount
+  useEffect(() => {
+    const savedId = localStorage.getItem(STORAGE_KEY);
+    if (savedId) {
+      getSession(savedId)
+        .then((detail) => {
+          const msgs: AgentMessage[] = detail.messages
+            .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
+            .map((m: { role: string; content: string }) => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              toolCalls: [],
+              citations: [],
+              dataTables: [],
+              charts: [],
+            }));
+          setSessionId(savedId);
+          setMessages(msgs);
+        })
+        .catch(() => {
+          localStorage.removeItem(STORAGE_KEY);
+        });
+    }
+  }, []);
+
+  // Persist sessionId to localStorage
+  useEffect(() => {
+    if (sessionId) {
+      localStorage.setItem(STORAGE_KEY, sessionId);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [sessionId]);
 
   const handleNewSession = useCallback(() => {
     setSessionId(undefined);
@@ -85,7 +122,6 @@ const AgentChatPage: React.FC = () => {
               case 'tool_result': {
                 const tr = event.data as unknown as ToolResultEvent;
                 const calls = [...(last.toolCalls ?? [])];
-                // Find the last running call for this tool
                 let idx = -1;
                 for (let i = calls.length - 1; i >= 0; i--) {
                   if (calls[i].tool === tr.tool && calls[i].status === 'running') {
@@ -121,7 +157,6 @@ const AgentChatPage: React.FC = () => {
               }
               case 'done': {
                 last.loading = false;
-                // Clean think tags
                 let cleaned = last.content
                   .replace(/<think>[\s\S]*?<\/think>/g, '')
                   .trim();
@@ -129,7 +164,6 @@ const AgentChatPage: React.FC = () => {
                   cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
                 }
                 last.content = cleaned;
-                // Capture session_id from done event
                 const sid = (event.data as { session_id?: string }).session_id;
                 if (sid) setSessionId(sid);
                 break;
