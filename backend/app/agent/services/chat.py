@@ -16,6 +16,7 @@ from pydantic_ai.messages import (
     PartStartEvent,
     PartDeltaEvent,
     TextPartDelta,
+    ThinkingPartDelta,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -188,25 +189,27 @@ class ChatService:
                     elif kind == 'text':
                         _text_indices.add(event.index)
 
-                elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
-                    # Skip thinking parts (Anthropic provider)
-                    if event.index in _thinking_indices:
-                        continue
-
-                    content = event.delta.content_delta
-                    if not content:
-                        continue
-
-                    if _has_thinking_parts:
-                        # Provider separates thinking
-                        if event.index in _thinking_indices:
+                elif isinstance(event, PartDeltaEvent):
+                    delta = event.delta
+                    # Handle ThinkingPartDelta — emit as thinking event
+                    if isinstance(delta, ThinkingPartDelta):
+                        content = delta.content_delta
+                        if content:
                             await event_queue.put({"event": "thinking", "data": {"content": content}})
-                        else:
+
+                    # Handle TextPartDelta — emit as token (or buffer for OpenAI)
+                    elif isinstance(delta, TextPartDelta):
+                        content = delta.content_delta
+                        if not content:
+                            continue
+
+                        if _has_thinking_parts:
+                            # Anthropic provider: text parts are clean, emit directly
                             await event_queue.put({"event": "token", "data": {"content": content}})
-                    else:
-                        # OpenAI provider: detect <think> tags via buffer
-                        _buf += content
-                        await _flush_buf()
+                        else:
+                            # OpenAI provider: detect <think> tags via buffer
+                            _buf += content
+                            await _flush_buf()
 
             # Final flush for buffer mode
             if not _has_thinking_parts:
