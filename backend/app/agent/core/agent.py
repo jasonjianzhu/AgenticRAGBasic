@@ -64,13 +64,14 @@ def create_agent(
         "output_type": str,
         "retries": 2,
     }
-    if provider:
-        kwargs["provider"] = provider
 
-    agent = Agent(
-        model_name,
-        **kwargs,
-    )
+    # If a custom provider is given, create a Model object instead of using string
+    if provider:
+        from pydantic_ai.models.anthropic import AnthropicModel
+        model = AnthropicModel(model_name.replace("anthropic:", ""), provider=provider)
+        agent = Agent(model, **kwargs)
+    else:
+        agent = Agent(model_name, **kwargs)
 
     # ── RAG Search Tool ──────────────────────────────────────
 
