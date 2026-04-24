@@ -53,21 +53,21 @@ const AgentLayout: React.FC = () => {
           </div>
           <div>
             <Text strong style={{ fontSize: 17, color: '#08979c', letterSpacing: 0.5 }}>
-              AgenticRAG
+              晶科智能运维
             </Text>
             <Text style={{ fontSize: 12, color: '#8c8c8c', marginLeft: 8 }}>
               储能智能助手
             </Text>
           </div>
         </div>
-        <Tooltip title="管理后台">
+        <Tooltip title="返回首页">
           <Button
             type="text"
             icon={<SettingOutlined />}
-            onClick={() => navigate('/admin/kb')}
+            onClick={() => navigate('/')}
             style={{ color: '#8c8c8c' }}
           >
-            管理后台
+            返回首页
           </Button>
         </Tooltip>
       </Header>

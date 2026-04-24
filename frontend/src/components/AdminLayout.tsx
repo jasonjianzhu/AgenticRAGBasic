@@ -43,7 +43,7 @@ const AdminLayout: React.FC = () => {
           }}
         >
           <Text strong style={{ color: '#36cfc9', fontSize: 18, letterSpacing: 1 }}>
-            AgenticRAG
+            晶科智能运维
           </Text>
         </div>
         <Menu
@@ -54,6 +54,14 @@ const AdminLayout: React.FC = () => {
           onClick={({ key }) => navigate(key)}
         />
         <div style={{ position: 'absolute', bottom: 16, width: '100%', textAlign: 'center' }}>
+          <div style={{ marginBottom: 8 }}>
+            <a
+              onClick={() => navigate('/')}
+              style={{ color: '#8c8c8c', fontSize: 13, cursor: 'pointer' }}
+            >
+              返回首页
+            </a>
+          </div>
           <a
             onClick={() => navigate('/agent')}
             style={{ color: '#36cfc9', fontSize: 13, cursor: 'pointer' }}
