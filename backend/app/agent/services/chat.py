@@ -19,6 +19,7 @@ from pydantic_ai.messages import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic_ai.usage import UsageLimits
 from app.common.core.config import Settings, get_settings
 from app.common.core.logging import get_logger
 from app.agent.core.agent import AgentDeps, create_agent
@@ -254,6 +255,7 @@ class ChatService:
                         "temperature": self._settings.llm_temperature,
                         "max_tokens": self._settings.llm_max_tokens,
                     },
+                    usage_limits=UsageLimits(tool_calls_limit=6),
                     event_stream_handler=stream_handler,
                 )
                 result_text = result.response.text or ""
