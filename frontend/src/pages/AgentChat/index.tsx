@@ -17,8 +17,6 @@ import SessionSidebar from './SessionSidebar';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 
-const { Content } = Layout;
-
 const STORAGE_KEY = 'agent_current_session';
 
 const AgentChatPage: React.FC = () => {
