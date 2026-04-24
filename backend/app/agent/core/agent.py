@@ -46,22 +46,30 @@ class AgentDeps:
 def create_agent(
     model_name: str = "openai:gpt-4o",
     system_prompt: str = "",
+    provider: Any = None,
 ) -> Agent[AgentDeps, str]:
     """Create a PydanticAI Agent with all tools registered.
 
     Args:
-        model_name: PydanticAI model identifier (e.g. "openai:gpt-4o").
+        model_name: PydanticAI model identifier (e.g. "openai:gpt-4o", "anthropic:model").
         system_prompt: Full system prompt including DB schema.
+        provider: Optional provider instance (e.g. AnthropicProvider with custom base_url).
 
     Returns:
         Configured Agent instance.
     """
+    kwargs: dict[str, Any] = {
+        "instructions": system_prompt,
+        "deps_type": AgentDeps,
+        "output_type": str,
+        "retries": 2,
+    }
+    if provider:
+        kwargs["provider"] = provider
+
     agent = Agent(
         model_name,
-        instructions=system_prompt,
-        deps_type=AgentDeps,
-        output_type=str,
-        retries=2,
+        **kwargs,
     )
 
     # ── RAG Search Tool ──────────────────────────────────────

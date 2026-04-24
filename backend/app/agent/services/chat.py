@@ -13,6 +13,7 @@ from pydantic_ai.messages import (
     ModelResponse,
     TextPart,
     UserPromptPart,
+    PartStartEvent,
     PartDeltaEvent,
     TextPartDelta,
 )
@@ -42,8 +43,29 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
         return _agent
 
     import os
-    os.environ.setdefault("OPENAI_API_KEY", settings.llm_api_key)
-    os.environ.setdefault("OPENAI_BASE_URL", settings.llm_base_url)
+
+    # Determine provider based on LLM_BASE_URL
+    base_url = settings.llm_base_url
+    api_key = settings.llm_api_key
+    model_id = settings.llm_model
+
+    if "/anthropic" in base_url:
+        # Anthropic-compatible API (e.g. MiniMax Anthropic endpoint)
+        # PydanticAI anthropic: prefix uses Anthropic SDK
+        os.environ.setdefault("ANTHROPIC_API_KEY", api_key)
+        from pydantic_ai.providers.anthropic import AnthropicProvider
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=api_key, base_url=base_url)
+        provider = AnthropicProvider(anthropic_client=client)
+        model_name = f"anthropic:{model_id}"
+        logger.info("agent_using_anthropic_provider", base_url=base_url, model=model_id)
+    else:
+        # OpenAI-compatible API
+        os.environ.setdefault("OPENAI_API_KEY", api_key)
+        os.environ.setdefault("OPENAI_BASE_URL", base_url)
+        provider = None  # use default openai provider
+        model_name = f"openai:{model_id}"
+        logger.info("agent_using_openai_provider", base_url=base_url, model=model_id)
 
     try:
         from app.agent.sql.executor import _get_business_session_factory
@@ -57,8 +79,7 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
         _schema_description = "（业务数据库暂不可用）"
 
     system_prompt = build_system_prompt(_schema_description)
-    model_name = f"openai:{settings.llm_model}"
-    _agent = create_agent(model_name=model_name, system_prompt=system_prompt)
+    _agent = create_agent(model_name=model_name, system_prompt=system_prompt, provider=provider)
     return _agent
 
 
@@ -145,21 +166,47 @@ class ChatService:
         agent = await _get_or_create_agent(self._settings)
         message_history = self._build_message_history(history[:-1] if history else [])
 
-        # 6. Event stream handler — receives LLM streaming events in real-time
-        # MiniMax via OpenAI-compatible API puts <think>...</think> in text content
-        # Use buffer to reliably strip thinking blocks even when tokens arrive split
+        # 6. Event stream handler — real-time token streaming
+        # Two strategies:
+        # - Anthropic API: part_kind='thinking' vs 'text', filter by part kind
+        # - OpenAI API: <think> tags in text, filter by buffer matching
+        _text_indices: set[int] = set()
+        _thinking_indices: set[int] = set()
+        _has_thinking_parts = False  # True if provider separates thinking
         _buf = ""
         _in_think = False
 
         async def stream_handler(run_ctx, event_stream):
-            nonlocal _buf, _in_think
+            nonlocal _has_thinking_parts, _buf, _in_think
             async for event in event_stream:
-                if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
-                    _buf += event.delta.content_delta
-                    await _flush_buf()
+                if isinstance(event, PartStartEvent):
+                    kind = getattr(event.part, 'part_kind', 'unknown')
+                    if kind == 'thinking':
+                        _thinking_indices.add(event.index)
+                        _has_thinking_parts = True
+                    elif kind == 'text':
+                        _text_indices.add(event.index)
 
-            # Final flush
-            await _flush_buf(force=True)
+                elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+                    # Skip thinking parts (Anthropic provider)
+                    if event.index in _thinking_indices:
+                        continue
+
+                    content = event.delta.content_delta
+                    if not content:
+                        continue
+
+                    if _has_thinking_parts:
+                        # Provider separates thinking, emit text directly
+                        await event_queue.put({"event": "token", "data": {"content": content}})
+                    else:
+                        # OpenAI provider: need buffer filtering for <think> tags
+                        _buf += content
+                        await _flush_buf()
+
+            # Final flush for buffer mode
+            if not _has_thinking_parts:
+                await _flush_buf(force=True)
 
         async def _flush_buf(force: bool = False):
             nonlocal _buf, _in_think
@@ -170,30 +217,24 @@ class ChatService:
                         _buf = _buf[end + 8:]
                         _in_think = False
                     else:
-                        # Still in think block, discard buffer but keep last 8 chars
-                        # (in case "</think>" is split across chunks)
                         if len(_buf) > 8:
                             _buf = _buf[-8:]
                         break
                 else:
                     start = _buf.find("<think>")
                     if start != -1:
-                        # Emit text before <think>
                         if start > 0:
                             await event_queue.put({"event": "token", "data": {"content": _buf[:start]}})
                         _buf = _buf[start + 7:]
                         _in_think = True
                     elif not force and len(_buf) < 7:
-                        # Buffer too short, might be partial "<think", wait for more
                         break
                     elif not force and _buf[-1] == "<":
-                        # Ends with '<', might be start of tag, hold it
                         if len(_buf) > 1:
                             await event_queue.put({"event": "token", "data": {"content": _buf[:-1]}})
                             _buf = "<"
                         break
                     else:
-                        # No think tag, emit all
                         await event_queue.put({"event": "token", "data": {"content": _buf}})
                         _buf = ""
                         break
