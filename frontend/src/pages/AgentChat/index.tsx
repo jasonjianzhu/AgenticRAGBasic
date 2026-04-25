@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { message } from 'antd';
 import { listKBs } from '@/api/client';
 import { agentChatStream, getSession } from '@/api/agent';
+import { stripThinkTags } from '@/utils/content';
 import type { KBResponse } from '@/types';
 import type {
   AgentMessage,
@@ -170,14 +171,7 @@ const AgentChatPage: React.FC = () => {
               }
               case 'done': {
                 last.loading = false;
-                // Clean any residual think tags in content
-                let cleaned = last.content
-                  .replace(/<think>[\s\S]*?<\/think>/g, '')
-                  .trim();
-                if (cleaned.includes('<think>')) {
-                  cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
-                }
-                last.content = cleaned;
+                last.content = stripThinkTags(last.content);
                 // Clear thinking on done
                 last.thinking = undefined;
                 const sid = (event.data as { session_id?: string }).session_id;

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { stripThinkTags } from '@/utils/content';
 import {
   Input,
   Button,
@@ -116,12 +117,7 @@ const RAGChatPage: React.FC = () => {
             }
             case 'done': {
               last.loading = false;
-              // Strip <think>...</think> blocks from final content
-              let cleaned = last.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-              if (cleaned.includes('<think>')) {
-                cleaned = cleaned.replace(/<think>[\s\S]*/g, '').trim();
-              }
-              last.content = cleaned;
+              last.content = stripThinkTags(last.content);
               break;
             }
             case 'error':
@@ -214,10 +210,7 @@ const RAGChatPage: React.FC = () => {
               ) : msg.role === 'assistant' ? (
                 <div style={{ marginBottom: msg.citations?.length ? 8 : 0 }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content
-                      .replace(/<think>[\s\S]*?<\/think>/g, '')
-                      .replace(/<think>[\s\S]*/g, '')
-                      .trim()}
+                    {stripThinkTags(msg.content)}
                   </ReactMarkdown>
                 </div>
               ) : (

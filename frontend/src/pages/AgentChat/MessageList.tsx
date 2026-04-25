@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Spin, Typography, Empty } from 'antd';
 import { RobotOutlined, UserOutlined } from '@ant-design/icons';
+import { stripThinkTags } from '@/utils/content';
 import type { AgentMessage } from '@/types/agent';
 import ToolCallDisplay from './ToolCallDisplay';
 import ChartRenderer from './ChartRenderer';
@@ -160,10 +161,7 @@ const MessageList: React.FC<Props> = ({ messages }) => {
                     },
                   }}
                 >
-                  {msg.content
-                    .replace(/<think>[\s\S]*?<\/think>/g, '')
-                    .replace(/<think>[\s\S]*/g, '')
-                    .trim()}
+                  {stripThinkTags(msg.content)}
                 </ReactMarkdown>
               </div>
             ) : (
