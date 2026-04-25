@@ -13,9 +13,7 @@ from pydantic_ai.messages import (
     ModelResponse,
     TextPart,
     UserPromptPart,
-    PartStartEvent,
     PartDeltaEvent,
-    TextPartDelta,
     ThinkingPartDelta,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -168,89 +166,17 @@ class ChatService:
         agent = await _get_or_create_agent(self._settings)
         message_history = self._build_message_history(history[:-1] if history else [])
 
-        # 6. Event stream handler — real-time token streaming
-        # Two strategies:
-        # - Anthropic API: part_kind='thinking' vs 'text', filter by part kind
-        # - OpenAI API: <think> tags in text, filter by buffer matching
-        _text_indices: set[int] = set()
-        _thinking_indices: set[int] = set()
-        _has_thinking_parts = False  # True if provider separates thinking
-        _buf = ""
-        _in_think = False
+        # 6. Event stream handler — only for thinking display, not text streaming
+        # Text output uses result.response.text after agent completes (avoids truncation)
 
         async def stream_handler(run_ctx, event_stream):
-            nonlocal _has_thinking_parts, _buf, _in_think
             async for event in event_stream:
-                if isinstance(event, PartStartEvent):
-                    kind = getattr(event.part, 'part_kind', 'unknown')
-                    if kind == 'thinking':
-                        _thinking_indices.add(event.index)
-                        _has_thinking_parts = True
-                    elif kind == 'text':
-                        _text_indices.add(event.index)
-
-                elif isinstance(event, PartDeltaEvent):
+                if isinstance(event, PartDeltaEvent):
                     delta = event.delta
-                    # Handle ThinkingPartDelta — emit as thinking event
                     if isinstance(delta, ThinkingPartDelta):
                         content = delta.content_delta
                         if content:
                             await event_queue.put({"event": "thinking", "data": {"content": content}})
-
-                    # Handle TextPartDelta — emit as token (or buffer for OpenAI)
-                    elif isinstance(delta, TextPartDelta):
-                        content = delta.content_delta
-                        if not content:
-                            continue
-
-                        if _has_thinking_parts:
-                            # Anthropic provider: text parts are clean, emit directly
-                            await event_queue.put({"event": "token", "data": {"content": content}})
-                        else:
-                            # OpenAI provider: detect <think> tags via buffer
-                            _buf += content
-                            await _flush_buf()
-
-            # Final flush for buffer mode
-            if not _has_thinking_parts:
-                await _flush_buf(force=True)
-
-        async def _flush_buf(force: bool = False):
-            nonlocal _buf, _in_think
-            while _buf:
-                if _in_think:
-                    end = _buf.find("</think>")
-                    if end != -1:
-                        # Emit thinking content before </think>
-                        think_content = _buf[:end]
-                        if think_content:
-                            await event_queue.put({"event": "thinking", "data": {"content": think_content}})
-                        _buf = _buf[end + 8:]
-                        _in_think = False
-                    else:
-                        # Still in think block, emit as thinking but keep tail
-                        if len(_buf) > 8:
-                            await event_queue.put({"event": "thinking", "data": {"content": _buf[:-8]}})
-                            _buf = _buf[-8:]
-                        break
-                else:
-                    start = _buf.find("<think>")
-                    if start != -1:
-                        if start > 0:
-                            await event_queue.put({"event": "token", "data": {"content": _buf[:start]}})
-                        _buf = _buf[start + 7:]
-                        _in_think = True
-                    elif not force and len(_buf) < 7:
-                        break
-                    elif not force and _buf[-1] == "<":
-                        if len(_buf) > 1:
-                            await event_queue.put({"event": "token", "data": {"content": _buf[:-1]}})
-                            _buf = "<"
-                        break
-                    else:
-                        await event_queue.put({"event": "token", "data": {"content": _buf}})
-                        _buf = ""
-                        break
 
         # 7. Run Agent in background with streaming
         result_text = ""
@@ -305,9 +231,14 @@ class ChatService:
 
         await agent_task
 
-        # 9. Error
+        # 9. Stream the final text as tokens (complete, no truncation)
         if agent_error:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
+        elif result_text:
+            cleaned = _clean_think_tags(result_text)
+            chunk_size = 20
+            for i in range(0, len(cleaned), chunk_size):
+                yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
 
         # 10. Done
         yield {"event": "done", "data": {"session_id": str(session_id)}}
