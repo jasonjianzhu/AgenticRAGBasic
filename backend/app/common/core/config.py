@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     rag_answer_top_k: int = Field(default=5, alias="RAG_ANSWER_TOP_K")
     rag_rewrite_enabled: bool = Field(default=True, alias="RAG_REWRITE_ENABLED")
     rag_context_window_tokens: int = Field(default=4000, alias="RAG_CONTEXT_WINDOW_TOKENS")
-    rag_score_threshold: float = Field(default=0.01, alias="RAG_SCORE_THRESHOLD")
+    rag_score_threshold: float = Field(default=0.012, alias="RAG_SCORE_THRESHOLD")
     rag_refusal_threshold: float = Field(default=0.005, alias="RAG_REFUSAL_THRESHOLD")
 
     # --- Langfuse ---

@@ -249,6 +249,13 @@ class ChatService:
             for i in range(0, len(cleaned), chunk_size):
                 yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
 
+            # 9.5. Emit only citations that were actually referenced in the answer
+            if deps.collected_citations:
+                cited_indices = set(int(m) for m in re.findall(r'\[(\d+)\]', cleaned))
+                for idx in sorted(cited_indices):
+                    if idx in deps.collected_citations:
+                        yield {"event": "citation", "data": deps.collected_citations[idx]}
+
         # 10. Done
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 

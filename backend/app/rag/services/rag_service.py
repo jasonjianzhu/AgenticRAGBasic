@@ -192,8 +192,11 @@ class RAGService:
                 logger.warning("rewrite_failed_using_original", error=str(e))
         timings["rewrite"] = round((time.monotonic() - t0) * 1000)
 
-        # 4. Embed
-        query_embedding = await self._embedding.embed_query(rewritten_query)
+        # 4. Embed (both original and rewritten for better recall)
+        query_embedding = await self._embedding.embed_query(normalized)
+        rewritten_embedding = None
+        if enable_rewrite and rewritten_query != normalized:
+            rewritten_embedding = await self._embedding.embed_query(rewritten_query)
 
         # 5. Search across all KBs
         t0 = time.monotonic()
@@ -212,6 +215,7 @@ class RAGService:
         for kb_id in kb_ids:
             kb_filters = {"kb_id": str(kb_id), **payload_filters}
 
+            # Search with original query
             dense = await self._vector_store.search_dense(
                 vector=query_embedding.dense,
                 limit=candidate_limit,
@@ -225,10 +229,29 @@ class RAGService:
             all_dense.extend(dense)
             all_sparse.extend(sparse)
 
+            # Also search with rewritten query for better recall
+            if rewritten_embedding:
+                dense_rw = await self._vector_store.search_dense(
+                    vector=rewritten_embedding.dense,
+                    limit=candidate_limit,
+                    filters=kb_filters,
+                )
+                sparse_rw = await self._vector_store.search_sparse(
+                    sparse_vector=rewritten_embedding.sparse,
+                    limit=candidate_limit,
+                    filters=kb_filters,
+                )
+                all_dense.extend(dense_rw)
+                all_sparse.extend(sparse_rw)
+
         timings["search"] = round((time.monotonic() - t0) * 1000)
 
         # RRF fusion
         fused = _rrf_fusion(all_dense, all_sparse, k=self._settings.retrieval_rrf_k)
+
+        # Filter by RRF score threshold (before reranking)
+        threshold = self._settings.rag_score_threshold
+        fused = [(pid, score, payload) for pid, score, payload in fused if score >= threshold]
 
         # 6. Rerank
         reranked = False
@@ -242,7 +265,7 @@ class RAGService:
                 contents = await self._get_chunk_contents(chunk_ids)
 
                 rerank_results = await self._reranker.rerank(
-                    query=rewritten_query,
+                    query=normalized,
                     documents=contents,
                     top_n=top_k,
                 )
@@ -251,9 +274,6 @@ class RAGService:
                 new_fused = []
                 for rr in rerank_results:
                     if rr.index < len(candidates):
-                        # Filter out very low rerank scores (irrelevant results)
-                        if rr.score < 0.01:
-                            continue
                         pid, score, payload = candidates[rr.index]
                         new_fused.append((pid, score, payload))
                         rerank_scores[pid] = rr.score
@@ -269,10 +289,6 @@ class RAGService:
 
         # 7. Enrich
         enriched = await self._enrich_results(top_results, rerank_scores)
-
-        # Filter by score threshold
-        threshold = self._settings.rag_score_threshold
-        enriched = [r for r in enriched if r.score >= threshold]
 
         timings["total"] = sum(timings.values())
 

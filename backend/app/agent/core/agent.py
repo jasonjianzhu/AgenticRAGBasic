@@ -37,6 +37,8 @@ class AgentDeps:
     kb_ids: list[uuid.UUID] = field(default_factory=list)
     # Callback to emit SSE events during tool execution
     emit_event: Any = None  # async callable(event_type, data)
+    # Collected citations from rag_search calls (keyed by index)
+    collected_citations: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ def create_agent(
         """检索知识库，查找技术文档、产品手册、FAQ 中的相关内容。
 
         Args:
-            query: 检索问题，例如"电池过温告警处理方法"
+            query: 必须原封不动使用用户发送的完整原文，禁止任何修改、拆分或关键词提取
             top_k: 返回结果数量，默认5
         """
         deps = ctx.deps
@@ -95,6 +97,7 @@ def create_agent(
                 query=query,
                 kb_ids=deps.kb_ids,
                 top_k=top_k,
+                enable_rewrite=False,
             )
 
             output = RAGSearchOutput(
@@ -111,21 +114,31 @@ def create_agent(
                 total_hits=result.trace.returned,
             )
 
-            # Emit citations
+            # Store citations in context for later matching (emitted after agent responds)
             if deps.emit_event:
                 for chunk in output.chunks:
-                    await deps.emit_event("citation", {
+                    deps.collected_citations[chunk.index] = {
                         "index": chunk.index,
                         "document_title": chunk.document_title,
                         "page": chunk.page_start,
                         "snippet": chunk.content[:200],
-                    })
+                    }
+                await deps.emit_event("tool_result", {
+                    "tool": "rag_search",
+                    "summary": f"找到 {len(output.chunks)} 条相关结果",
+                })
                 await deps.emit_event("tool_result", {
                     "tool": "rag_search",
                     "summary": f"找到 {len(output.chunks)} 条相关结果",
                 })
 
-            return output.to_text()
+            text_result = output.to_text()
+            logger.info("rag_search_tool_result",
+                        query=query,
+                        chunks=len(output.chunks),
+                        titles=[c.document_title for c in output.chunks],
+                        content_preview=text_result[:300])
+            return text_result
 
         except Exception as e:
             logger.error("rag_search_tool_error", error=str(e))
