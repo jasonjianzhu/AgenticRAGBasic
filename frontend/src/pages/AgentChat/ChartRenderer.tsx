@@ -58,8 +58,8 @@ const ChartRenderer: React.FC<Props> = React.memo(({ option }) => {
     <div
       ref={chartRef}
       style={{
-        width: '100%',
-        minWidth: 280,
+        width: 500,
+        maxWidth: '100%',
         height: 320,
         marginBottom: 8,
         borderRadius: 8,
