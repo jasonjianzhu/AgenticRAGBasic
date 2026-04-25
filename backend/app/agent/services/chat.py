@@ -198,11 +198,13 @@ class ChatService:
                     event_stream_handler=stream_handler,
                 )
                 result_text = result.response.text or ""
+                logger.info("agent_result", text_len=len(result_text))
             except Exception as e:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)
             finally:
                 # Save assistant message with independent DB session
+                logger.info("agent_save_start", has_text=bool(result_text), text_len=len(result_text))
                 if result_text:
                     try:
                         from app.common.db.session import async_session_factory
