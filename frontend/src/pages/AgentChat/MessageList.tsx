@@ -150,7 +150,8 @@ const MessageList: React.FC<Props> = ({ messages }) => {
                   {msg.content
                     .replace(/<think>[\s\S]*?<\/think>/g, '')
                     .replace(/<think>[\s\S]*/g, '')
-                    .replace(/!\[[\s\S]*?\]\([\s\S]*?\)/g, '')  // 移除 markdown 图片语法（含换行）
+                    .replace(/!\[[\s\S]*?\]\([\s\S]*?\)/g, '')
+                    .replace(/[A-Za-z0-9%]{100,}/g, '')  // 移除超长编码字符串
                     .trim()}
                 </ReactMarkdown>
               </div>
