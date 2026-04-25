@@ -141,10 +141,16 @@ const MessageList: React.FC<Props> = ({ messages }) => {
               <Spin size="small" />
             ) : msg.role === 'assistant' ? (
               <div className="agent-markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    img: () => null,  // 禁止渲染图片（图表由 ECharts 渲染）
+                  }}
+                >
                   {msg.content
                     .replace(/<think>[\s\S]*?<\/think>/g, '')
                     .replace(/<think>[\s\S]*/g, '')
+                    .replace(/!\[.*?\]\(.*?\)/g, '')  // 移除 markdown 图片语法
                     .trim()}
                 </ReactMarkdown>
               </div>
