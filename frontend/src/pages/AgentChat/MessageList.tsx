@@ -150,7 +150,7 @@ const MessageList: React.FC<Props> = ({ messages }) => {
                   {msg.content
                     .replace(/<think>[\s\S]*?<\/think>/g, '')
                     .replace(/<think>[\s\S]*/g, '')
-                    .replace(/!\[.*?\]\(.*?\)/g, '')  // 移除 markdown 图片语法
+                    .replace(/!\[[\s\S]*?\]\([\s\S]*?\)/g, '')  // 移除 markdown 图片语法（含换行）
                     .trim()}
                 </ReactMarkdown>
               </div>
