@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as echarts from 'echarts';
 import type { ChartEvent } from '@/types/agent';
 
@@ -6,51 +6,43 @@ interface Props {
   option: ChartEvent;
 }
 
-const ChartRenderer: React.FC<Props> = React.memo(({ option }) => {
+const ChartRenderer: React.FC<Props> = ({ option }) => {
   const chartRef = useRef<HTMLDivElement>(null);
-  const instanceRef = useRef<echarts.ECharts | null>(null);
-  const observerRef = useRef<ResizeObserver | null>(null);
-
-  const optionStr = useMemo(() => JSON.stringify(option), [option]);
 
   useEffect(() => {
+    if (!chartRef.current) return;
+    if (option.chart_type === 'table') return;
+
     const el = chartRef.current;
-    if (!el || option.chart_type === 'table') return;
 
-    // Wait for container to have dimensions
-    const initChart = () => {
-      if (!el.clientWidth) return;
-
-      if (instanceRef.current) {
-        instanceRef.current.dispose();
-      }
+    // Init with delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      // Dispose any existing instance on this element
+      const existing = echarts.getInstanceByDom(el);
+      if (existing) existing.dispose();
 
       const instance = echarts.init(el);
-      instanceRef.current = instance;
-      instance.setOption(option as echarts.EChartsOption, true);
-    };
+      instance.setOption(option as echarts.EChartsOption);
 
-    // Use ResizeObserver to detect when container gets dimensions
-    observerRef.current = new ResizeObserver(() => {
-      if (el.clientWidth > 0) {
-        if (!instanceRef.current) {
-          initChart();
-        } else {
-          instanceRef.current.resize();
-        }
-      }
-    });
-    observerRef.current.observe(el);
+      // Handle window resize
+      const onResize = () => instance.resize();
+      window.addEventListener('resize', onResize);
 
-    // Also try immediate init
-    requestAnimationFrame(initChart);
+      // Cleanup stored for this effect
+      (el as any).__echarts_cleanup = () => {
+        window.removeEventListener('resize', onResize);
+        instance.dispose();
+      };
+    }, 100);
 
     return () => {
-      observerRef.current?.disconnect();
-      instanceRef.current?.dispose();
-      instanceRef.current = null;
+      clearTimeout(timer);
+      if ((el as any).__echarts_cleanup) {
+        (el as any).__echarts_cleanup();
+        delete (el as any).__echarts_cleanup;
+      }
     };
-  }, [optionStr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(option)]);
 
   if (option.chart_type === 'table') return null;
 
@@ -63,12 +55,11 @@ const ChartRenderer: React.FC<Props> = React.memo(({ option }) => {
         height: 320,
         marginBottom: 8,
         borderRadius: 8,
-        background: '#fff',
+        background: '#fafafa',
+        border: '1px solid #f0f0f0',
       }}
     />
   );
-});
-
-ChartRenderer.displayName = 'ChartRenderer';
+};
 
 export default ChartRenderer;
