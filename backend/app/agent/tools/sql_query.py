@@ -24,11 +24,16 @@ class SQLQueryOutput:
             return f"查询失败: {self.error}"
         if not self.rows:
             return "查询无结果。"
-        # Simple text table
-        header = " | ".join(self.columns)
-        lines = [header, "-" * len(header)]
-        for row in self.rows[:20]:  # show first 20 in text
-            lines.append(" | ".join(str(v) for v in row))
-        if self.row_count > 20:
-            lines.append(f"... 共 {self.row_count} 行")
-        return "\n".join(lines)
+        # Return summary instead of raw data to prevent LLM from dumping it as text
+        # The full data is already sent to frontend via data_table SSE event
+        summary = f"查询到 {self.row_count} 条记录，字段: {', '.join(self.columns)}"
+        # Show first 3 rows as sample for LLM to understand the data
+        if self.rows:
+            samples = []
+            for row in self.rows[:3]:
+                pairs = [f"{col}={val}" for col, val in zip(self.columns, row)]
+                samples.append("; ".join(pairs))
+            summary += "\n示例数据:\n" + "\n".join(f"  - {s}" for s in samples)
+            if self.row_count > 3:
+                summary += f"\n  ... 共 {self.row_count} 行"
+        return summary
