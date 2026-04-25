@@ -144,14 +144,25 @@ const MessageList: React.FC<Props> = ({ messages }) => {
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    img: () => null,  // 禁止渲染图片（图表由 ECharts 渲染）
+                    img: () => null,
+                    // Filter out paragraphs that are just URL-encoded junk or image refs
+                    p: ({ children, ...props }) => {
+                      const text = typeof children === 'string' ? children :
+                        Array.isArray(children)
+                          ? children.map(c => typeof c === 'string' ? c : '').join('')
+                          : '';
+                      // Skip paragraphs that are mostly URL-encoded strings
+                      if (/%[0-9A-Fa-f]{2}/.test(text) && text.replace(/\s/g, '').length > 80) {
+                        const encoded = (text.match(/%[0-9A-Fa-f]{2}/g) || []).length;
+                        if (encoded > 10) return null;
+                      }
+                      return <p {...props}>{children}</p>;
+                    },
                   }}
                 >
                   {msg.content
                     .replace(/<think>[\s\S]*?<\/think>/g, '')
                     .replace(/<think>[\s\S]*/g, '')
-                    .replace(/!\[[\s\S]*?\]\([\s\S]*?\)/g, '')
-                    .replace(/[A-Za-z0-9%]{100,}/g, '')  // 移除超长编码字符串
                     .trim()}
                 </ReactMarkdown>
               </div>
