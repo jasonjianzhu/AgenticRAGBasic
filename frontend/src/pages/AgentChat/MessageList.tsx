@@ -91,7 +91,7 @@ const MessageList: React.FC<Props> = ({ messages }) => {
           {/* Bubble */}
           <div
             style={{
-              maxWidth: '75%',
+              maxWidth: '90%',
               padding: '12px 16px',
               borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
               background:
