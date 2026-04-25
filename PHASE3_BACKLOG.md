@@ -68,6 +68,12 @@
 | AnthropicModel provider 传参 | 用 AnthropicModel 对象传入 Agent | ✅ |
 | transformers 版本冲突 | 升级到 4.57.6 兼容 tokenizers 0.22 | ✅ |
 | 前端白屏 | 删除残留的 Layout 引用 | ✅ |
+| Agent RAG检索结果与RAG问答不一致 | 双重改写（Agent改query + RAG rewrite）导致语义偏移，Agent侧关闭RAG rewrite，prompt约束直接用原始问题 | ✅ |
+| RAG pipeline过滤排序职责混乱 | RRF threshold移到rerank之前，去掉reranker内部硬编码过滤，reranker只排序不过滤 | ✅ |
+| Agent检索内容被截断500字符 | to_text()去掉content[:500]截断，与RAG问答保持一致 | ✅ |
+| 引用来源显示不相关内容 | citation改为Agent回答后解析[1][2]标记，只发送被实际引用的来源 | ✅ |
+| Agent用通用知识回答而非知识库内容 | prompt新增"回答原则"，强制知识问答基于检索结果，禁止用自身知识替代 | ✅ |
+| RRF score threshold过低形同虚设 | 从0.01调整为0.012，过滤单列表排名20+的噪音 | ✅ |
 
 ### 文档与配置
 
@@ -88,7 +94,6 @@
 
 | 项目 | 说明 | 优先级 |
 |------|------|--------|
-| Agent 回答质量对比 | 同一问题 Agent 和 RAG 回答可能不同，需对比排查 | P2 |
 | 图表 prompt 优化 | system prompt 增加图表生成示例 | P2 |
 | 工具调用失败降级 | 单个工具失败时返回错误说明，不中断对话 | P2 |
 | 多轮对话上下文优化 | 工具调用结果纳入历史消息 | P2 |
