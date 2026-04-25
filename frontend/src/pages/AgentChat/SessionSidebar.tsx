@@ -47,7 +47,7 @@ const SessionSidebar: React.FC<Props> = ({
           toolCalls: [],
           citations: [],
           dataTables: [],
-          charts: [],
+          charts: (m.metadata?.charts as any[] | undefined) ?? [],
         }));
       onSelectSession(sid, msgs);
     } catch {

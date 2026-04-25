@@ -181,6 +181,7 @@ class ChatService:
         # 7. Run Agent in background with streaming
         result_text = ""
         agent_error = None
+        collected_charts: list[dict] = []
 
         async def run_agent():
             nonlocal result_text, agent_error
@@ -212,7 +213,7 @@ class ChatService:
                                 role="assistant",
                                 content=_clean_think_tags(result_text),
                                 message_type="text",
-                                metadata_={},
+                                metadata_={"charts": collected_charts} if collected_charts else {},
                             )
                             save_session.add(msg)
                             await save_session.commit()
@@ -227,6 +228,9 @@ class ChatService:
             event = await event_queue.get()
             if event is None:
                 break
+            # Collect chart data for persistence
+            if event["event"] == "chart":
+                collected_charts.append(event["data"])
             yield event
 
         await agent_task

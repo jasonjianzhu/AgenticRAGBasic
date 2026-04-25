@@ -44,16 +44,18 @@ const AgentChatPage: React.FC = () => {
     const loadSession = (id: string) => {
       getSession(id)
         .then((detail) => {
+          console.log('[AgentChat] loadSession', id, 'messages:', detail.messages.length);
           const msgs: AgentMessage[] = detail.messages
             .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
-            .map((m: { role: string; content: string }) => ({
+            .map((m: { role: string; content: string; metadata: Record<string, unknown> }) => ({
               role: m.role as 'user' | 'assistant',
               content: m.content,
               toolCalls: [],
               citations: [],
               dataTables: [],
-              charts: [],
+              charts: (m.metadata?.charts as ChartEvent[] | undefined) ?? [],
             }));
+          console.log('[AgentChat] restored msgs:', msgs.length);
           setSessionId(id);
           setMessages(msgs);
 
@@ -63,7 +65,8 @@ const AgentChatPage: React.FC = () => {
             setTimeout(() => loadSession(id), 3000);
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('[AgentChat] loadSession failed', err);
           localStorage.removeItem(STORAGE_KEY);
         });
     };
