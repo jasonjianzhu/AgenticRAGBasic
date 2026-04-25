@@ -138,6 +138,9 @@ class ChatService:
         if msg_count <= 1:
             await self._session_service.update_title_from_first_message(session_id, message)
 
+        # Commit session + user message so background task can reference them
+        await self._db_session.commit()
+
         # 2. Build history
         history = await self._session_service.get_context_messages(session_id)
 
