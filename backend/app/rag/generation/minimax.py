@@ -78,13 +78,28 @@ class MiniMaxClient(BaseLLMClient):
 
     async def complete(self, messages: list[LLMMessage], **kwargs) -> LLMResponse:
         """Generate a complete response via Anthropic Messages API."""
+        import time as _time
+        _start = _time.monotonic()
         url = f"{self._base_url}/v1/messages"
         payload = self._build_payload(messages, stream=False, **kwargs)
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(url, json=payload, headers=self._headers())
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(url, json=payload, headers=self._headers())
+                response.raise_for_status()
+                data = response.json()
+        except httpx.TimeoutException:
+            logger.error("llm_complete_timeout", model=self._model, timeout=self._timeout,
+                         duration_ms=round((_time.monotonic() - _start) * 1000))
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error("llm_complete_http_error", model=self._model, status=e.response.status_code,
+                         duration_ms=round((_time.monotonic() - _start) * 1000))
+            raise
+        except Exception as e:
+            logger.error("llm_complete_error", model=self._model, error=str(e),
+                         duration_ms=round((_time.monotonic() - _start) * 1000))
+            raise
 
         # Extract text content (skip thinking blocks)
         content_parts = []
@@ -107,14 +122,17 @@ class MiniMaxClient(BaseLLMClient):
 
     async def stream(self, messages: list[LLMMessage], **kwargs) -> AsyncIterator[LLMStreamChunk]:
         """Generate a streaming response via Anthropic Messages API with SSE."""
+        import time as _time
+        _start = _time.monotonic()
         url = f"{self._base_url}/v1/messages"
         payload = self._build_payload(messages, stream=True, **kwargs)
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            async with client.stream("POST", url, json=payload, headers=self._headers()) as response:
-                response.raise_for_status()
-                current_type = ""  # track current content block type
-                async for line in response.aiter_lines():
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with client.stream("POST", url, json=payload, headers=self._headers()) as response:
+                    response.raise_for_status()
+                    current_type = ""  # track current content block type
+                    async for line in response.aiter_lines():
                     if not line.startswith("data: "):
                         continue
                     data_str = line[6:].strip()
@@ -149,4 +167,18 @@ class MiniMaxClient(BaseLLMClient):
                             yield LLMStreamChunk(content="", finish_reason=stop_reason)
 
                     elif event_type == "message_stop":
+                        logger.info("llm_stream_complete", model=self._model,
+                                    duration_ms=round((_time.monotonic() - _start) * 1000))
                         return
+        except httpx.TimeoutException:
+            logger.error("llm_stream_timeout", model=self._model, timeout=self._timeout,
+                         duration_ms=round((_time.monotonic() - _start) * 1000))
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error("llm_stream_http_error", model=self._model, status=e.response.status_code,
+                         duration_ms=round((_time.monotonic() - _start) * 1000))
+            raise
+        except Exception as e:
+            logger.error("llm_stream_error", model=self._model, error=str(e),
+                         duration_ms=round((_time.monotonic() - _start) * 1000))
+            raise
