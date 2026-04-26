@@ -1,4 +1,4 @@
-# AgenticRAG 产品需求文档（PRD）
+# AgenticRAG 技术方案
 
 ## 文档信息
 
