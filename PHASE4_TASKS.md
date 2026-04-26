@@ -177,6 +177,47 @@
 - [ ] 截断策略：按 rerank score 降序保留，低分 chunk 优先丢弃
 - [ ] 截断时记录日志（被丢弃的 chunk 数量）
 
+### T11.5 文档图片提取与检索展示
+
+#### T11.5.1 解析阶段
+
+- [ ] `_run_docling` 中识别 `PictureItem`，提取 PIL Image 二进制数据
+- [ ] 图片保存到文件存储，路径：`{kb_id}/{doc_id}/images/{image_id}.png`
+- [ ] 提取图片 caption（Docling PictureItem.captions）
+- [ ] 提取图片周围文本上下文（前后各 1-2 个 segment）
+- [ ] `ParsedDocument` 新增 `images` 字段（`ParsedImage` dataclass：path, page_number, caption, context_text）
+
+#### T11.5.2 数据模型
+
+- [ ] `ChunkData` 支持 `chunk_type="image"`
+- [ ] image chunk 的 content = caption + 上下文文本（用于 embedding）
+- [ ] image chunk 的 metadata 存 `image_path`（存储路径）
+- [ ] Chunk 表新增 `image_path` 可选字段
+- [ ] Alembic 迁移文件
+
+#### T11.5.3 Chunker 适配
+
+- [ ] `docling_hybrid` chunker 处理图片 segment：生成 `chunk_type="image"` 的 chunk
+- [ ] 图片 chunk 不参与合并（`_merge_small_chunks` 跳过 image 类型）
+
+#### T11.5.4 索引
+
+- [ ] 图片 chunk 正常走 embedding 流程（用文本 content 生成向量）
+- [ ] Qdrant payload 携带 `image_path` 和 `chunk_type="image"`
+
+#### T11.5.5 检索展示
+
+- [ ] 图片服务接口：`GET /images/{path}` 返回图片文件
+- [ ] RAG 搜索结果中图片 chunk 返回 `image_url` 字段
+- [ ] Agent rag_search tool 返回结果中标注图片 chunk
+- [ ] 前端 citation 面板支持渲染图片（img 标签）
+- [ ] 前端 RAG 问答页面支持展示图片结果
+
+#### T11.5.6 可选增强
+
+- [ ] 多模态模型生成图片描述（替代简单 caption）
+- [ ] 图片描述作为 chunk content，提升检索语义匹配
+
 ---
 
 ## M12：功能完善
