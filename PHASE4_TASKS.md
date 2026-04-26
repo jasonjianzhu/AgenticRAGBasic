@@ -111,7 +111,7 @@
 - [ ] `backend/Dockerfile`（多阶段构建，分离依赖安装和代码复制）
 - [ ] `frontend/Dockerfile`（Node 构建 + Nginx 静态服务）
 - [ ] `worker/Dockerfile`（复用 backend 镜像，不同 entrypoint）
-- [ ] `docker-compose.yml`（PostgreSQL + Qdrant + Redis + MinIO + backend + frontend + worker）
+- [ ] `docker-compose.yml`（PostgreSQL + Qdrant + Redis + MinIO + Langfuse + backend + frontend + worker）
 - [ ] `docker-compose.dev.yml`（开发环境，挂载代码目录）
 - [ ] `.dockerignore` 优化镜像体积
 
@@ -168,7 +168,8 @@
 - [ ] 简繁转换（`opencc` 库）
 - [ ] 单位归一化映射表（kW↔千瓦、V↔伏特、Ah↔安时、kWh↔千瓦时）
 - [ ] 储能行业中英文术语同义词表（BMS↔电池管理系统、PCS↔储能变流器、SOC↔荷电状态）
-- [ ] 评估归一化对 Hit@K 的影响（A/B 测试）
+- [ ] Query Rewrite 同义扩充：优化 rewrite prompt，在改写阶段输出同义词扩展
+- [ ] 评估归一化和同义扩充对 Hit@K 的影响（A/B 测试）
 
 ### T11.4 Context Token 截断
 
@@ -176,6 +177,13 @@
 - [ ] 按 `rag_context_window_tokens` 配置截断
 - [ ] 截断策略：按 rerank score 降序保留，低分 chunk 优先丢弃
 - [ ] 截断时记录日志（被丢弃的 chunk 数量）
+
+### T11.4b 切分逻辑优化
+
+- [ ] 利用 Docling `iterate_items()` 返回的 level 信息构建文档结构树
+- [ ] 按结构树节点边界切分，保证每个 chunk 是语义完整的段落/小节
+- [ ] 跨节点时优先在高层级标题处断开
+- [ ] 评估优化后对检索 Hit@K 的影响
 
 ### T11.5 文档图片提取与检索展示
 
@@ -258,6 +266,74 @@
 - [ ] 拒答准确率：知识库无答案时是否正确拒答
 - [ ] 评测结果持久化，支持版本间对比
 - [ ] 储能行业评测集（至少 50 条 query）
+
+### T12.6 Agent 对话优化
+
+- [ ] 工具调用失败降级：单个工具失败时返回错误说明，不中断对话
+- [ ] 多轮对话上下文优化：工具调用结果纳入历史消息
+- [ ] 会话标题智能生成：用 LLM 生成更好的标题（替代截取前 50 字符）
+- [ ] 会话过期自动清理：定时任务归档超过 24 小时的会话
+- [ ] 图表 prompt 优化：system prompt 增加图表类型选择和数据映射示例
+- [ ] 混合查询联调：SQL + RAG 复杂场景端到端验证
+
+### T12.7 Prompt 配置化
+
+- [ ] Agent system prompt 从 `prompts.py` 抽到配置文件或数据库
+- [ ] RAG answer prompt 从 `_build_answer_messages()` 抽到独立模块
+- [ ] 支持通过管理 API 修改 prompt（不需要重启服务）
+- [ ] Prompt 版本管理（通过 Langfuse 或数据库）
+
+### T12.8 文档版本清理
+
+- [ ] 创建新 DocumentVersion 前，清理旧版本的 chunks
+- [ ] 清理旧版本对应的 Qdrant 向量点
+- [ ] `ChunkRepository.delete_by_document_version` 已实现，在 `ingestion_task` 中调用
+
+### T12.9 文档类型分类优化
+
+- [ ] 调整规则分类器优先级，修复英文手册误识别为 `spec` 的问题
+- [ ] 增加英文手册关键词
+- [ ] 可选：引入 LLM 辅助分类
+
+### T12.10 RAG 问答页过滤条件
+
+- [ ] 前端 RAG 问答页增加过滤条件选择器（文档类型、语言、产品型号）
+- [ ] 调用 RAG API 时传入 `filters` 参数
+- [ ] 依赖 T11.2 chunk 元数据补全
+
+### T12.11 前端体验优化
+
+- [ ] 知识库统计卡片：批量请求优化，减少 KB 多时的请求量
+- [ ] 文档列表：增加按文档类型筛选
+- [ ] 检索调试：结果高亮改进（中文分词）
+- [ ] 上传反馈：大文件上传进度条
+- [ ] 管理后台样式适配新主题色
+
+### T12.12 测试覆盖率
+
+- [ ] 跑 `pytest --cov` 统计覆盖率，目标 >70%
+- [ ] 补充 RAG 服务单元测试（query 处理、RRF 融合、拒答策略）
+- [ ] 补充 SQL validator、chart tool、session service 单元测试
+- [ ] 补充 2-3 个真实 PDF 的集成测试（`@pytest.mark.integration`）
+- [ ] 前端 Agent 组件测试
+
+### T12.13 Alembic 迁移验证
+
+- [ ] 连接 PostgreSQL 跑 `alembic revision --autogenerate`，对比差异
+- [ ] 修正遗漏的字段类型或约束
+- [ ] 确保所有迁移文件可正向/反向执行
+
+### T12.14 OCR 效果评估
+
+- [ ] 评估 balanced profile 下 OCR 的效果和性能
+- [ ] 扫描件自动检测（chunk 内容为空或极短）
+- [ ] 自动切换到 accurate profile 的策略
+
+### T12.15 代码清理
+
+- [ ] 移除 debug 日志（agent_result / agent_save_start 等调试日志）
+- [ ] 清理 `failedShitCodexCode/` 目录（旧代码残留）
+- [ ] `previous_context` API 暴露（RAG search API 加可选字段）
 
 ---
 
