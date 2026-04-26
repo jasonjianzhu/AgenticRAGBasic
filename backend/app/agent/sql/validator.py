@@ -54,6 +54,7 @@ class SQLValidator:
         # Check statement type
         stmt_type = stmt.get_type()
         if stmt_type and stmt_type.upper() != "SELECT":
+            logger.warning("sql_validation_rejected", reason=f"non-SELECT: {stmt_type}", sql=sql[:200])
             raise SQLValidationError(f"只允许 SELECT 查询，当前为 {stmt_type}")
 
         # Check for forbidden keywords in tokens
@@ -61,6 +62,7 @@ class SQLValidator:
         for kw in _FORBIDDEN_KEYWORDS:
             # Match as whole word to avoid false positives
             if re.search(rf"\b{kw}\b", sql_upper):
+                logger.warning("sql_validation_rejected", reason=f"forbidden keyword: {kw}", sql=sql[:200])
                 raise SQLValidationError(f"禁止使用 {kw} 语句")
 
         # Check table whitelist
@@ -68,6 +70,7 @@ class SQLValidator:
             tables = self._extract_tables(sql)
             for table in tables:
                 if table.lower() not in {t.lower() for t in self._allowed_tables}:
+                    logger.warning("sql_validation_rejected", reason=f"table not allowed: {table}", sql=sql[:200])
                     raise SQLValidationError(f"不允许查询表 '{table}'，允许的表: {', '.join(sorted(self._allowed_tables))}")
 
         # Inject LIMIT if missing

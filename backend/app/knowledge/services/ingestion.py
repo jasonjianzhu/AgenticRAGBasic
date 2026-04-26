@@ -71,6 +71,7 @@ class IngestionService:
         magic_mime = kind.mime if kind else None
 
         if magic_mime != "application/pdf":
+            logger.warning("upload_rejected", reason="invalid_mime_type", detected=magic_mime)
             raise InvalidFileError(
                 f"Invalid file type: expected application/pdf, "
                 f"got '{magic_mime or 'unknown'}' from file content"
@@ -92,6 +93,7 @@ class IngestionService:
         """
         max_size = self.settings.max_upload_size_bytes
         if len(data) > max_size:
+            logger.warning("upload_rejected", reason="file_too_large", size=len(data), max_size=max_size)
             raise FileTooLargeError(
                 f"File size {len(data)} bytes exceeds maximum "
                 f"allowed size of {max_size} bytes ({max_size // (1024 * 1024)}MB)"

@@ -174,6 +174,7 @@ def create_agent(
             columns, rows, row_count = await deps.sql_executor.execute(safe_sql)
 
             output = SQLQueryOutput(columns=columns, rows=rows, row_count=row_count)
+            logger.info("sql_query_tool_result", sql=safe_sql[:200], row_count=row_count, explanation=explanation[:80])
 
             # Emit data table event
             if deps.emit_event:
