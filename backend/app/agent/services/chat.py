@@ -122,6 +122,12 @@ class ChatService:
         kb_ids: list[uuid.UUID] | None = None,
     ) -> AsyncIterator[dict]:
         """Process a chat message and yield SSE events with real-time streaming."""
+        import time as _time
+        _chat_start = _time.monotonic()
+        logger.info("agent_chat_start",
+                     message=message[:80],
+                     session_id=str(session_id) if session_id else "new",
+                     kb_ids=[str(k) for k in (kb_ids or [])])
         # 1. Session management
         if session_id:
             session = await self._session_service.get_session(session_id)
@@ -257,6 +263,12 @@ class ChatService:
                         yield {"event": "citation", "data": deps.collected_citations[idx]}
 
         # 10. Done
+        _chat_duration = round((_time.monotonic() - _chat_start) * 1000)
+        logger.info("agent_chat_complete",
+                     session_id=str(session_id),
+                     duration_ms=_chat_duration,
+                     has_error=bool(agent_error),
+                     text_len=len(result_text))
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 
     def _build_message_history(self, history: list[dict]) -> list[ModelMessage]:

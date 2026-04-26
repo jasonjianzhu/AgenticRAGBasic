@@ -51,6 +51,9 @@ def run_ingestion(document_id: str, **kwargs) -> None:
     """
     logger.info("run_ingestion_called", document_id=document_id, kwargs=kwargs)
 
+    import time as _time
+    _task_start = _time.monotonic()
+
     from app.common.core.config import get_settings
     from app.common.db.session_sync import sync_session_scope
     from app.knowledge.services.ingestion_task import IngestionTaskService
@@ -72,6 +75,8 @@ def run_ingestion(document_id: str, **kwargs) -> None:
             service.run(doc_uuid, parser_profile=parser_profile)
             # Mark job as finished
             _update_job_log(session, doc_uuid, "ingest", status="finished", finished_at=datetime.now(timezone.utc))
+            logger.info("ingestion_task_complete", document_id=document_id,
+                        duration_ms=round((_time.monotonic() - _task_start) * 1000))
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
             _update_job_log(
@@ -123,6 +128,9 @@ def run_indexing(document_id: str, **kwargs) -> None:
     """
     logger.info("run_indexing_called", document_id=document_id, kwargs=kwargs)
 
+    import time as _time
+    _task_start = _time.monotonic()
+
     from app.common.core.config import get_settings
     from app.common.db.session_sync import sync_session_scope
     from app.knowledge.services.indexing import IndexingService
@@ -140,6 +148,8 @@ def run_indexing(document_id: str, **kwargs) -> None:
             service.run(doc_uuid)
             # Mark job as finished
             _update_job_log(session, doc_uuid, "index", status="finished", finished_at=datetime.now(timezone.utc))
+            logger.info("indexing_task_complete", document_id=document_id,
+                        duration_ms=round((_time.monotonic() - _task_start) * 1000))
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
             _update_job_log(
