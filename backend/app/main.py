@@ -5,11 +5,43 @@ calls create_base_app() and registers only its own routers.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+import time
+import uuid
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.common.core.config import get_settings
 from app.common.core.logging import configure_logging, get_logger
+
+logger = get_logger(__name__)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log every request with method, path, status, and duration."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())[:8]
+        request.state.request_id = request_id
+        start = time.monotonic()
+
+        response = await call_next(request)
+
+        duration_ms = round((time.monotonic() - start) * 1000)
+        # Skip health checks and static files
+        path = request.url.path
+        if path not in ("/health", "/docs", "/redoc", "/openapi.json"):
+            logger.info(
+                "http_request",
+                request_id=request_id,
+                method=request.method,
+                path=path,
+                status=response.status_code,
+                duration_ms=duration_ms,
+            )
+
+        return response
 
 
 def create_base_app(
@@ -38,5 +70,7 @@ def create_base_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(RequestLoggingMiddleware)
 
     return app

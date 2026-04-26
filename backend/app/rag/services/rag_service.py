@@ -304,6 +304,18 @@ class RAGService:
             latency_ms=timings,
         )
 
+        logger.info(
+            "rag_search_complete",
+            query=query[:80],
+            rewritten=rewritten_query[:80] if enable_rewrite and rewritten_query != normalized else None,
+            dense_hits=len(all_dense),
+            sparse_hits=len(all_sparse),
+            fused=len(fused),
+            reranked=reranked,
+            returned=len(enriched),
+            timings=timings,
+        )
+
         return RAGSearchResult(
             query=query,
             rewritten_query=rewritten_query if enable_rewrite else None,
@@ -329,6 +341,7 @@ class RAGService:
         Event types: trace, citation, token, done, error
         """
         top_k = top_k or self._settings.rag_answer_top_k
+        logger.info("rag_answer_start", query=query[:80], kb_count=len(kb_ids), top_k=top_k)
 
         # Search
         try:
@@ -398,9 +411,11 @@ class RAGService:
                 if chunk.finish_reason == "stop":
                     break
         except Exception as e:
+            logger.error("rag_answer_generation_failed", query=query[:80], error=str(e))
             yield {"event": "error", "data": {"message": f"Generation failed: {e}"}}
             return
 
+        logger.info("rag_answer_complete", query=query[:80], total_tokens=total_tokens)
         yield {"event": "done", "data": {"total_tokens": total_tokens}}
 
     # ------------------------------------------------------------------
