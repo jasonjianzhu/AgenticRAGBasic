@@ -133,43 +133,43 @@ class MiniMaxClient(BaseLLMClient):
                     response.raise_for_status()
                     current_type = ""  # track current content block type
                     async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    data_str = line[6:].strip()
-                    if not data_str:
-                        continue
+                        if not line.startswith("data: "):
+                            continue
+                        data_str = line[6:].strip()
+                        if not data_str:
+                            continue
 
-                    try:
-                        data = json.loads(data_str)
-                    except json.JSONDecodeError:
-                        continue
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
 
-                    event_type = data.get("type", "")
+                        event_type = data.get("type", "")
 
-                    if event_type == "content_block_start":
-                        block = data.get("content_block", {})
-                        current_type = block.get("type", "")
+                        if event_type == "content_block_start":
+                            block = data.get("content_block", {})
+                            current_type = block.get("type", "")
 
-                    elif event_type == "content_block_delta":
-                        delta = data.get("delta", {})
-                        # Only emit text deltas, skip thinking deltas
-                        if current_type == "text" and delta.get("type") == "text_delta":
-                            text = delta.get("text", "")
-                            if text:
-                                yield LLMStreamChunk(content=text, finish_reason=None)
+                        elif event_type == "content_block_delta":
+                            delta = data.get("delta", {})
+                            # Only emit text deltas, skip thinking deltas
+                            if current_type == "text" and delta.get("type") == "text_delta":
+                                text = delta.get("text", "")
+                                if text:
+                                    yield LLMStreamChunk(content=text, finish_reason=None)
 
-                    elif event_type == "content_block_stop":
-                        current_type = ""
+                        elif event_type == "content_block_stop":
+                            current_type = ""
 
-                    elif event_type == "message_delta":
-                        stop_reason = data.get("delta", {}).get("stop_reason")
-                        if stop_reason:
-                            yield LLMStreamChunk(content="", finish_reason=stop_reason)
+                        elif event_type == "message_delta":
+                            stop_reason = data.get("delta", {}).get("stop_reason")
+                            if stop_reason:
+                                yield LLMStreamChunk(content="", finish_reason=stop_reason)
 
-                    elif event_type == "message_stop":
-                        logger.info("llm_stream_complete", model=self._model,
-                                    duration_ms=round((_time.monotonic() - _start) * 1000))
-                        return
+                        elif event_type == "message_stop":
+                            logger.info("llm_stream_complete", model=self._model,
+                                        duration_ms=round((_time.monotonic() - _start) * 1000))
+                            return
         except httpx.TimeoutException:
             logger.error("llm_stream_timeout", model=self._model, timeout=self._timeout,
                          duration_ms=round((_time.monotonic() - _start) * 1000))
