@@ -302,8 +302,30 @@ class ChatService:
                     logger.warning("harness_unverified_numbers",
                                    numbers=unverified,
                                    tool_output_count=len(deps.tool_outputs))
-                    disclaimer = "\n\n> ⚠️ 以上回答中部分数值未能在数据源中直接验证，请以原始数据为准。"
-                    cleaned = cleaned + disclaimer
+                    # Re-run with correction prompt
+                    correction_prompt = (
+                        f"你之前的回答中包含以下数值，但这些数值在数据源中找不到对应：{', '.join(unverified)}。\n"
+                        f"以下是工具返回的原始数据：\n\n"
+                        + "\n---\n".join(deps.tool_outputs[-3:])  # last 3 tool outputs
+                        + "\n\n请严格基于以上原始数据重新回答用户的问题，不要自行计算或推测任何数值。"
+                    )
+                    try:
+                        correction_result = await agent.run(
+                            correction_prompt,
+                            deps=deps,
+                            message_history=message_history,
+                            model_settings={
+                                "temperature": 0.0,
+                                "max_tokens": self._settings.llm_max_tokens,
+                            },
+                            usage_limits=UsageLimits(tool_calls_limit=0),
+                        )
+                        corrected = _clean_think_tags(correction_result.response.text or "")
+                        if corrected:
+                            cleaned = corrected
+                            logger.info("harness_correction_applied", original_len=len(result_text), corrected_len=len(cleaned))
+                    except Exception as e:
+                        logger.warning("harness_correction_failed", error=str(e))
 
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
