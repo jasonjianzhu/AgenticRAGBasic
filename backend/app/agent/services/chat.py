@@ -23,6 +23,8 @@ from app.common.core.config import Settings, get_settings
 from app.common.core.logging import get_logger
 from app.agent.core.agent import AgentDeps, create_agent
 from app.agent.core.prompts import build_system_prompt
+from app.agent.harness.checks import run_all_checks
+from app.agent.harness.correction import correct_answer
 from app.agent.services.session import SessionService
 from app.agent.sql.executor import SQLExecutor
 from app.agent.sql.schema_loader import SchemaLoader
@@ -94,49 +96,6 @@ def _clean_think_tags(text: str) -> str:
     if "<think>" in cleaned:
         cleaned = re.sub(r"<think>[\s\S]*", "", cleaned).strip()
     return cleaned
-
-
-# Number pattern: integers, decimals, percentages, with optional negative sign
-_NUMBER_RE = re.compile(r'-?\d+(?:\.\d+)?(?:%|(?:\s*(?:kW|kWh|MW|MWh|V|A|Ah|°C|℃|Hz|Ω|W|h)))?')
-
-
-def _verify_answer_numbers(answer: str, tool_outputs: list[str]) -> tuple[str, list[str]]:
-    """Verify that numbers in the answer can be traced to tool outputs.
-
-    Returns:
-        (answer, unverified_numbers): The original answer and list of numbers
-        that could not be found in any tool output.
-    """
-    if not tool_outputs:
-        return answer, []
-
-    # Extract numbers from answer
-    answer_numbers = _NUMBER_RE.findall(answer)
-    if not answer_numbers:
-        return answer, []
-
-    # Build a combined text of all tool outputs for matching
-    combined_outputs = "\n".join(tool_outputs)
-
-    # Check each number
-    unverified = []
-    for num in answer_numbers:
-        # Extract just the numeric part for matching
-        num_value = re.match(r'-?\d+(?:\.\d+)?', num)
-        if not num_value:
-            continue
-        value = num_value.group()
-        # Skip trivially common numbers (0, 1, 2, etc.)
-        try:
-            if abs(float(value)) < 10:
-                continue
-        except ValueError:
-            continue
-        # Check if this number appears in tool outputs
-        if value not in combined_outputs:
-            unverified.append(num.strip())
-
-    return answer, list(set(unverified))
 
 
 class ChatService:
@@ -295,45 +254,19 @@ class ChatService:
         elif result_text:
             cleaned = _clean_think_tags(result_text)
 
-            # 9.1 Harness: verify numbers in answer against tool outputs
-            if deps.tool_outputs:
-                cleaned, unverified = _verify_answer_numbers(cleaned, deps.tool_outputs)
-                if unverified:
-                    logger.warning("harness_unverified_numbers",
-                                   numbers=unverified,
-                                   tool_output_count=len(deps.tool_outputs))
-                    # Re-run with correction prompt
-                    correction_prompt = (
-                        f"你之前的回答中包含以下数值，但这些数值在数据源中找不到对应：{', '.join(unverified)}。\n"
-                        f"以下是工具返回的原始数据：\n\n"
-                        + "\n---\n".join(deps.tool_outputs[-3:])  # last 3 tool outputs
-                        + "\n\n请严格基于以上原始数据重新回答用户的问题，不要自行计算或推测任何数值。"
-                    )
-                    try:
-                        correction_result = await agent.run(
-                            correction_prompt,
-                            deps=deps,
-                            message_history=message_history,
-                            model_settings={
-                                "temperature": 0.0,
-                                "max_tokens": self._settings.llm_max_tokens,
-                            },
-                            usage_limits=UsageLimits(tool_calls_limit=0),
-                        )
-                        corrected = _clean_think_tags(correction_result.response.text or "")
-                        if corrected:
-                            cleaned = corrected
-                            logger.info("harness_correction_applied", original_len=len(result_text), corrected_len=len(cleaned))
-                        else:
-                            # Correction returned empty — fall back to raw data
-                            raw_data = "\n\n---\n\n".join(deps.tool_outputs[-3:])
-                            cleaned = f"以下是查询到的原始数据，供您参考：\n\n{raw_data}"
-                            logger.warning("harness_correction_empty_fallback_to_raw")
-                    except Exception as e:
-                        logger.warning("harness_correction_failed", error=str(e))
-                        # Correction failed — show raw tool data instead of wrong answer
-                        raw_data = "\n\n---\n\n".join(deps.tool_outputs[-3:])
-                        cleaned = f"以下是查询到的原始数据，供您参考：\n\n{raw_data}"
+            # 9.1 Harness: run all checks on the answer
+            check_results = run_all_checks(cleaned, deps.tool_outputs)
+            failed_checks = [r for r in check_results if not r.passed]
+            if failed_checks:
+                cleaned = await correct_answer(
+                    answer=cleaned,
+                    failed_checks=failed_checks,
+                    tool_outputs=deps.tool_outputs,
+                    agent=agent,
+                    deps=deps,
+                    message_history=message_history,
+                    max_tokens=self._settings.llm_max_tokens,
+                )
 
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
