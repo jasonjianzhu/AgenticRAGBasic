@@ -40,7 +40,9 @@ class AgentDeps:
     # Collected citations from rag_search calls (keyed by index)
     collected_citations: dict = field(default_factory=dict)
     # Collected raw tool outputs for post-answer verification (harness)
+    # Only sql_query outputs are verified — rag_search is text content, not data
     tool_outputs: list[str] = field(default_factory=list)
+    has_sql_query: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +137,6 @@ def create_agent(
                 })
 
             text_result = output.to_text()
-            deps.tool_outputs.append(text_result)
             logger.info("rag_search_tool_result",
                         query=query,
                         chunks=len(output.chunks),
@@ -193,6 +194,7 @@ def create_agent(
 
             sql_text_result = output.to_text()
             deps.tool_outputs.append(sql_text_result)
+            deps.has_sql_query = True
             return sql_text_result
 
         except Exception as e:

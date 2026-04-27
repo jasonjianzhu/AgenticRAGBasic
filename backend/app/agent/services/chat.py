@@ -254,19 +254,22 @@ class ChatService:
         elif result_text:
             cleaned = _clean_think_tags(result_text)
 
-            # 9.1 Harness: run all checks on the answer
-            check_results = run_all_checks(cleaned, deps.tool_outputs)
-            failed_checks = [r for r in check_results if not r.passed]
-            if failed_checks:
-                cleaned = await correct_answer(
-                    answer=cleaned,
-                    failed_checks=failed_checks,
-                    tool_outputs=deps.tool_outputs,
-                    agent=agent,
-                    deps=deps,
-                    message_history=message_history,
-                    max_tokens=self._settings.llm_max_tokens,
-                )
+            # 9.1 Harness: run checks only when sql_query was used (data accuracy)
+            # Knowledge QA (rag_search only) is not checked — text content numbers
+            # like page numbers, model IDs, protocol numbers are not "data"
+            if deps.has_sql_query:
+                check_results = run_all_checks(cleaned, deps.tool_outputs)
+                failed_checks = [r for r in check_results if not r.passed]
+                if failed_checks:
+                    cleaned = await correct_answer(
+                        answer=cleaned,
+                        failed_checks=failed_checks,
+                        tool_outputs=deps.tool_outputs,
+                        agent=agent,
+                        deps=deps,
+                        message_history=message_history,
+                        max_tokens=self._settings.llm_max_tokens,
+                    )
 
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
