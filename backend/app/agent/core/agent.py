@@ -131,19 +131,17 @@ def create_agent(
                 total_hits=result.trace.returned,
             )
 
-            # Store citations in context for later matching (emitted after agent responds)
+            # Store citations keyed by "document_title 第X页" for post-answer matching
             if deps.emit_event:
                 for chunk in output.chunks:
-                    deps.collected_citations[chunk.index] = {
-                        "index": chunk.index,
+                    cite_key = chunk.document_title
+                    if chunk.page_start:
+                        cite_key += f" 第{chunk.page_start}页"
+                    deps.collected_citations[cite_key] = {
                         "document_title": chunk.document_title,
                         "page": chunk.page_start,
                         "snippet": chunk.content[:200],
                     }
-                await deps.emit_event("tool_result", {
-                    "tool": "rag_search",
-                    "summary": f"找到 {len(output.chunks)} 条相关结果",
-                })
                 await deps.emit_event("tool_result", {
                     "tool": "rag_search",
                     "summary": f"找到 {len(output.chunks)} 条相关结果",

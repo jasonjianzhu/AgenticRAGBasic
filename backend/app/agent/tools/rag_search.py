@@ -35,8 +35,9 @@ class RAGSearchOutput:
         header = f"【知识库检索结果】共找到 {len(self.chunks)} 条相关内容，请严格基于以下内容回答，不要补充知识库中没有的信息：\n"
         parts = []
         for c in self.chunks:
-            source = f"[{c.index}] {c.document_title}"
+            # Use document_title + page as citation key (not index number)
+            source_key = c.document_title
             if c.page_start:
-                source += f" 第{c.page_start}页"
-            parts.append(f"{source}\n{c.content}")
+                source_key += f" 第{c.page_start}页"
+            parts.append(f"【{source_key}】\n{c.content}")
         return header + "\n\n---\n\n".join(parts)

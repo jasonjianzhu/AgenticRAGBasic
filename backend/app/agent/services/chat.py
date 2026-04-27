@@ -256,12 +256,30 @@ class ChatService:
             for i in range(0, len(cleaned), chunk_size):
                 yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
 
-            # 9.5. Emit only citations that were actually referenced in the answer
+            # 9.5. Emit citations matched by document title + page (not index numbers)
             if deps.collected_citations:
-                cited_indices = set(int(m) for m in re.findall(r'\[(\d+)\]', cleaned))
-                for idx in sorted(cited_indices):
-                    if idx in deps.collected_citations:
-                        yield {"event": "citation", "data": deps.collected_citations[idx]}
+                # Extract all 【...】 references from the answer
+                cited_keys = re.findall(r'【([^】]+)】', cleaned)
+                emitted = set()
+                for key in cited_keys:
+                    key = key.strip()
+                    if key in emitted:
+                        continue
+                    # Exact match
+                    if key in deps.collected_citations:
+                        cit = deps.collected_citations[key]
+                        cit["index"] = len(emitted) + 1
+                        yield {"event": "citation", "data": cit}
+                        emitted.add(key)
+                    else:
+                        # Fuzzy match: find citation whose key contains the referenced text
+                        for cite_key, cit in deps.collected_citations.items():
+                            if cite_key in key or key in cite_key:
+                                if cite_key not in emitted:
+                                    cit["index"] = len(emitted) + 1
+                                    yield {"event": "citation", "data": cit}
+                                    emitted.add(cite_key)
+                                break
 
         # 10. Done
         _chat_duration = round((_time.monotonic() - _chat_start) * 1000)
