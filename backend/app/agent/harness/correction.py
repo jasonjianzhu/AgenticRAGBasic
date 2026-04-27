@@ -83,11 +83,19 @@ async def correct_answer(
         )
         corrected = _clean_think_tags(result.response.text or "")
         if corrected:
-            logger.info("harness_correction_applied",
-                        issues=[c.check_name for c in failed_checks],
-                        original_len=len(answer),
-                        corrected_len=len(corrected))
-            return corrected
+            # Verify the corrected answer — if still has issues, fall back to raw data
+            from app.agent.harness.checks import run_all_checks
+            recheck = run_all_checks(corrected, tool_outputs)
+            still_failed = [r for r in recheck if not r.passed]
+            if still_failed:
+                logger.warning("harness_correction_still_failed",
+                               issues=[c.check_name for c in still_failed])
+            else:
+                logger.info("harness_correction_applied",
+                            issues=[c.check_name for c in failed_checks],
+                            original_len=len(answer),
+                            corrected_len=len(corrected))
+                return corrected
     except Exception as e:
         logger.warning("harness_correction_failed", error=str(e))
 
