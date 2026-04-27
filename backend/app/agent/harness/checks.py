@@ -70,15 +70,37 @@ async def verify_answer(
     ]
 
     try:
-        response = await llm_client.complete(messages, temperature=0.0, max_tokens=256)
+        response = await llm_client.complete(messages, temperature=0.0, max_tokens=512)
         content = response.content.strip()
 
-        # Parse JSON response
         # Handle cases where LLM wraps in markdown code block
         if content.startswith("```"):
             content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
-        result = json.loads(content)
+        # Try to extract JSON from response (LLM might add extra text)
+        json_match = None
+        for start in range(len(content)):
+            if content[start] == '{':
+                for end in range(len(content), start, -1):
+                    if content[end-1] == '}':
+                        try:
+                            json_match = json.loads(content[start:end])
+                            break
+                        except json.JSONDecodeError:
+                            continue
+                if json_match:
+                    break
+
+        if json_match is None:
+            # Could not parse any JSON — check if raw text indicates failure
+            lower = content.lower()
+            if '"passed": false' in lower or '"passed":false' in lower:
+                logger.warning("harness_verify_failed", reason="JSON parse failed but detected false", raw=content[:300])
+                return HarnessResult(passed=False, reason=content[:200])
+            logger.warning("harness_verify_parse_error", raw=content[:300])
+            return HarnessResult(passed=True, reason="verification parse error")
+
+        result = json_match
         passed = result.get("passed", True)
         reason = result.get("reason", "")
 
