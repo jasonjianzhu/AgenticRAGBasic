@@ -23,8 +23,6 @@ from app.common.core.config import Settings, get_settings
 from app.common.core.logging import get_logger
 from app.agent.core.agent import AgentDeps, create_agent
 from app.agent.core.prompts import build_system_prompt
-from app.agent.harness.checks import check_tool_grounding
-from app.agent.harness.correction import force_tool_rerun
 from app.agent.services.session import SessionService
 from app.agent.sql.executor import SQLExecutor
 from app.agent.sql.schema_loader import SchemaLoader
@@ -253,19 +251,6 @@ class ChatService:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
         elif result_text:
             cleaned = _clean_think_tags(result_text)
-
-            # 9.1 Harness: ensure Agent called tools before answering
-            grounding = check_tool_grounding(deps.has_tool_calls, deps.has_numeric_sql)
-            if not grounding.passed:
-                corrected = await force_tool_rerun(
-                    original_message=message,
-                    agent=agent,
-                    deps=deps,
-                    message_history=message_history,
-                    max_tokens=self._settings.llm_max_tokens,
-                )
-                if corrected:
-                    cleaned = corrected
 
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
