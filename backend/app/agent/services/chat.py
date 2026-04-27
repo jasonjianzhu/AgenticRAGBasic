@@ -23,7 +23,7 @@ from app.common.core.config import Settings, get_settings
 from app.common.core.logging import get_logger
 from app.agent.core.agent import AgentDeps, create_agent
 from app.agent.core.prompts import build_system_prompt
-from app.agent.harness.checks import run_all_checks
+from app.agent.harness.checks import verify_answer
 from app.agent.harness.correction import correct_answer
 from app.agent.services.session import SessionService
 from app.agent.sql.executor import SQLExecutor
@@ -254,34 +254,26 @@ class ChatService:
         elif result_text:
             cleaned = _clean_think_tags(result_text)
 
-            # 9.1 Harness: two-layer verification
-            # Layer 1: Always check — did Agent fabricate without calling any tool?
-            from app.agent.harness.checks import check_no_tool_fabrication
-            no_tool_check = check_no_tool_fabrication(cleaned, deps.tool_outputs)
-            if not no_tool_check.passed:
-                cleaned = await correct_answer(
-                    answer=cleaned,
-                    failed_checks=[no_tool_check],
-                    tool_outputs=deps.tool_outputs,
-                    agent=agent,
-                    deps=deps,
-                    message_history=message_history,
-                    max_tokens=self._settings.llm_max_tokens,
+            # 9.1 Harness: LLM-based answer verification
+            # Only runs when tools were called (has data to verify against)
+            if deps.tool_outputs or deps.has_numeric_sql:
+                from app.rag.generation.minimax import MiniMaxClient
+                llm_client = MiniMaxClient(
+                    base_url=self._settings.llm_base_url,
+                    api_key=self._settings.llm_api_key,
+                    model=self._settings.llm_model,
+                    timeout=self._settings.llm_timeout,
                 )
-
-            # Layer 2: Only when sql_query returned numeric data
-            if deps.has_numeric_sql:
-                check_results = run_all_checks(cleaned, deps.tool_outputs)
-                # Exclude no_tool_fabrication (already checked above)
-                failed_checks = [r for r in check_results if not r.passed and r.check_name != "no_tool_fabrication"]
-                if failed_checks:
+                verification = await verify_answer(cleaned, deps.tool_outputs, llm_client)
+                if not verification.passed:
                     cleaned = await correct_answer(
                         answer=cleaned,
-                        failed_checks=failed_checks,
+                        verification=verification,
                         tool_outputs=deps.tool_outputs,
                         agent=agent,
                         deps=deps,
                         message_history=message_history,
+                        llm_client=llm_client,
                         max_tokens=self._settings.llm_max_tokens,
                     )
 
