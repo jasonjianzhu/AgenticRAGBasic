@@ -324,8 +324,16 @@ class ChatService:
                         if corrected:
                             cleaned = corrected
                             logger.info("harness_correction_applied", original_len=len(result_text), corrected_len=len(cleaned))
+                        else:
+                            # Correction returned empty — fall back to raw data
+                            raw_data = "\n\n---\n\n".join(deps.tool_outputs[-3:])
+                            cleaned = f"以下是查询到的原始数据，供您参考：\n\n{raw_data}"
+                            logger.warning("harness_correction_empty_fallback_to_raw")
                     except Exception as e:
                         logger.warning("harness_correction_failed", error=str(e))
+                        # Correction failed — show raw tool data instead of wrong answer
+                        raw_data = "\n\n---\n\n".join(deps.tool_outputs[-3:])
+                        cleaned = f"以下是查询到的原始数据，供您参考：\n\n{raw_data}"
 
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
