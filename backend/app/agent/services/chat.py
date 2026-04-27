@@ -96,6 +96,49 @@ def _clean_think_tags(text: str) -> str:
     return cleaned
 
 
+# Number pattern: integers, decimals, percentages, with optional negative sign
+_NUMBER_RE = re.compile(r'-?\d+(?:\.\d+)?(?:%|(?:\s*(?:kW|kWh|MW|MWh|V|A|Ah|°C|℃|Hz|Ω|W|h)))?')
+
+
+def _verify_answer_numbers(answer: str, tool_outputs: list[str]) -> tuple[str, list[str]]:
+    """Verify that numbers in the answer can be traced to tool outputs.
+
+    Returns:
+        (answer, unverified_numbers): The original answer and list of numbers
+        that could not be found in any tool output.
+    """
+    if not tool_outputs:
+        return answer, []
+
+    # Extract numbers from answer
+    answer_numbers = _NUMBER_RE.findall(answer)
+    if not answer_numbers:
+        return answer, []
+
+    # Build a combined text of all tool outputs for matching
+    combined_outputs = "\n".join(tool_outputs)
+
+    # Check each number
+    unverified = []
+    for num in answer_numbers:
+        # Extract just the numeric part for matching
+        num_value = re.match(r'-?\d+(?:\.\d+)?', num)
+        if not num_value:
+            continue
+        value = num_value.group()
+        # Skip trivially common numbers (0, 1, 2, etc.)
+        try:
+            if abs(float(value)) < 10:
+                continue
+        except ValueError:
+            continue
+        # Check if this number appears in tool outputs
+        if value not in combined_outputs:
+            unverified.append(num.strip())
+
+    return answer, list(set(unverified))
+
+
 class ChatService:
     """Orchestrates Agent chat with real-time SSE streaming.
 
@@ -251,6 +294,17 @@ class ChatService:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
         elif result_text:
             cleaned = _clean_think_tags(result_text)
+
+            # 9.1 Harness: verify numbers in answer against tool outputs
+            if deps.tool_outputs:
+                cleaned, unverified = _verify_answer_numbers(cleaned, deps.tool_outputs)
+                if unverified:
+                    logger.warning("harness_unverified_numbers",
+                                   numbers=unverified,
+                                   tool_output_count=len(deps.tool_outputs))
+                    disclaimer = "\n\n> ⚠️ 以上回答中部分数值未能在数据源中直接验证，请以原始数据为准。"
+                    cleaned = cleaned + disclaimer
+
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
                 yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}

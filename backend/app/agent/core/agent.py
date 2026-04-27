@@ -39,6 +39,8 @@ class AgentDeps:
     emit_event: Any = None  # async callable(event_type, data)
     # Collected citations from rag_search calls (keyed by index)
     collected_citations: dict = field(default_factory=dict)
+    # Collected raw tool outputs for post-answer verification (harness)
+    tool_outputs: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +135,7 @@ def create_agent(
                 })
 
             text_result = output.to_text()
+            deps.tool_outputs.append(text_result)
             logger.info("rag_search_tool_result",
                         query=query,
                         chunks=len(output.chunks),
@@ -188,7 +191,9 @@ def create_agent(
                     "summary": f"查询到 {row_count} 条记录",
                 })
 
-            return output.to_text()
+            sql_text_result = output.to_text()
+            deps.tool_outputs.append(sql_text_result)
+            return sql_text_result
 
         except Exception as e:
             error_msg = str(e)
