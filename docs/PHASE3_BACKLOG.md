@@ -82,6 +82,10 @@
 | LLM不调工具直接编造数值 | harness check_no_tool_fabrication检测 | ✅ |
 | LLM过度推断（预计/趋势表明） | harness check_speculation模式匹配检测 | ✅ |
 | harness内联在chat.py中 | 抽象为独立模块 app/agent/harness/（checks.py + correction.py） | ✅ |
+| harness阈值/正则误伤正常问答 | 方案A（LLM验证）→ 验证LLM也会误判 → 方案C（纯prompt约束+轻量硬约束） | ✅ |
+| harness强制重跑干扰闲聊 | 去掉强制重跑，harness模块保留为扩展点，当前不拦截 | ✅ |
+| 引用编号[1][2]容易搞混 | 改为【文档名 第X页】语义标识，代码做确定性字符串匹配 | ✅ |
+| SQL查询timedelta类型JSON序列化报错 | executor._serialize_row增加timedelta→str转换 | ✅ |
 
 ### 文档与配置
 
