@@ -64,7 +64,7 @@ async def correct_answer(
                 f"只陈述数据事实，不要做预测或推断。"
             )
 
-    raw_data = "\n---\n".join(tool_outputs[-3:]) if tool_outputs else "（无工具返回数据）"
+    raw_data = "\n---\n".join(tool_outputs) if tool_outputs else "（无工具返回数据）"
 
     correction_prompt = (
         "你之前的回答存在以下问题：\n"
@@ -93,7 +93,7 @@ async def correct_answer(
 
     # Correction failed — fall back to raw data
     if tool_outputs:
-        raw_data_display = "\n\n---\n\n".join(tool_outputs[-3:])
+        raw_data_display = "\n\n---\n\n".join(tool_outputs)
         logger.warning("harness_fallback_to_raw_data",
                         issues=[c.check_name for c in failed_checks])
         return f"以下是查询到的原始数据，供您参考：\n\n{raw_data_display}"
