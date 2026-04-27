@@ -67,10 +67,9 @@ async def correct_answer(
     raw_data = "\n---\n".join(tool_outputs) if tool_outputs else "（无工具返回数据）"
 
     correction_prompt = (
-        "你之前的回答存在以下问题：\n"
-        + "\n".join(f"- {issue}" for issue in issues)
-        + f"\n\n以下是工具返回的原始数据：\n\n{raw_data}"
-        + "\n\n请严格基于以上原始数据重新回答，不要自行计算、换算或推测。"
+        "请基于以下数据回答用户的问题。直接给出答案，不要提及之前的回答、不要道歉、不要解释修正过程。\n\n"
+        f"数据：\n{raw_data}\n\n"
+        "要求：只使用以上数据中的原始数值，不要自行计算、换算或推测。"
     )
 
     try:

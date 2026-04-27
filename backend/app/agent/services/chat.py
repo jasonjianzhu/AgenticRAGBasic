@@ -254,11 +254,26 @@ class ChatService:
         elif result_text:
             cleaned = _clean_think_tags(result_text)
 
-            # 9.1 Harness: run checks only when sql_query returned numeric data
-            # Skipped for: knowledge QA, metadata queries (table names, column lists)
+            # 9.1 Harness: two-layer verification
+            # Layer 1: Always check — did Agent fabricate without calling any tool?
+            from app.agent.harness.checks import check_no_tool_fabrication
+            no_tool_check = check_no_tool_fabrication(cleaned, deps.tool_outputs)
+            if not no_tool_check.passed:
+                cleaned = await correct_answer(
+                    answer=cleaned,
+                    failed_checks=[no_tool_check],
+                    tool_outputs=deps.tool_outputs,
+                    agent=agent,
+                    deps=deps,
+                    message_history=message_history,
+                    max_tokens=self._settings.llm_max_tokens,
+                )
+
+            # Layer 2: Only when sql_query returned numeric data
             if deps.has_numeric_sql:
                 check_results = run_all_checks(cleaned, deps.tool_outputs)
-                failed_checks = [r for r in check_results if not r.passed]
+                # Exclude no_tool_fabrication (already checked above)
+                failed_checks = [r for r in check_results if not r.passed and r.check_name != "no_tool_fabrication"]
                 if failed_checks:
                     cleaned = await correct_answer(
                         answer=cleaned,

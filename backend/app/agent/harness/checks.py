@@ -52,21 +52,18 @@ def check_no_tool_fabrication(
     """Check 1: Agent answered with numbers but never called any tool.
 
     Detects when Agent fabricates data without querying any data source.
+    When tool_outputs is empty, ANY number in the answer is suspicious
+    because there's no data source to back it up.
     """
     if tool_outputs:
         return HarnessResult(check_name="no_tool_fabrication", passed=True)
 
     numbers = _NUMBER_RE.findall(answer)
-    # Filter out trivially small numbers
-    significant = []
-    for num in numbers:
-        match = re.match(r'-?\d+(?:\.\d+)?', num)
-        if match:
-            try:
-                if abs(float(match.group())) >= 10:
-                    significant.append(num.strip())
-            except ValueError:
-                continue
+    if not numbers:
+        return HarnessResult(check_name="no_tool_fabrication", passed=True)
+
+    # When no tool was called, all numbers are fabricated — no size threshold
+    significant = [num.strip() for num in numbers]
 
     if not significant:
         return HarnessResult(check_name="no_tool_fabrication", passed=True)
