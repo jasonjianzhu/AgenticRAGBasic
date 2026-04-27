@@ -52,10 +52,10 @@ class AgentDeps:
     emit_event: Any = None  # async callable(event_type, data)
     # Collected citations from rag_search calls (keyed by index)
     collected_citations: dict = field(default_factory=dict)
-    # Collected raw sql_query outputs for post-answer verification (harness)
-    # Only populated when sql_query returns numeric data (not metadata queries)
+    # Collected raw sql_query outputs for display on fallback
     tool_outputs: list[str] = field(default_factory=list)
     has_numeric_sql: bool = False
+    has_tool_calls: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +150,7 @@ def create_agent(
                 })
 
             text_result = output.to_text()
+            deps.has_tool_calls = True
             logger.info("rag_search_tool_result",
                         query=query,
                         chunks=len(output.chunks),
@@ -206,6 +207,7 @@ def create_agent(
                 })
 
             sql_text_result = output.to_text()
+            deps.has_tool_calls = True
             # Only collect for harness if query returned numeric data
             if _has_numeric_values(output.rows):
                 deps.tool_outputs.append(sql_text_result)

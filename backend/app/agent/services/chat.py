@@ -23,8 +23,8 @@ from app.common.core.config import Settings, get_settings
 from app.common.core.logging import get_logger
 from app.agent.core.agent import AgentDeps, create_agent
 from app.agent.core.prompts import build_system_prompt
-from app.agent.harness.checks import verify_answer
-from app.agent.harness.correction import correct_answer
+from app.agent.harness.checks import check_tool_grounding
+from app.agent.harness.correction import force_tool_rerun
 from app.agent.services.session import SessionService
 from app.agent.sql.executor import SQLExecutor
 from app.agent.sql.schema_loader import SchemaLoader
@@ -254,28 +254,18 @@ class ChatService:
         elif result_text:
             cleaned = _clean_think_tags(result_text)
 
-            # 9.1 Harness: LLM-based answer verification
-            # Only runs when tools were called (has data to verify against)
-            if deps.tool_outputs or deps.has_numeric_sql:
-                from app.rag.generation.minimax import MiniMaxClient
-                llm_client = MiniMaxClient(
-                    base_url=self._settings.llm_base_url,
-                    api_key=self._settings.llm_api_key,
-                    model=self._settings.llm_model,
-                    timeout=self._settings.llm_timeout,
+            # 9.1 Harness: ensure Agent called tools before answering
+            grounding = check_tool_grounding(deps.has_tool_calls, deps.has_numeric_sql)
+            if not grounding.passed:
+                corrected = await force_tool_rerun(
+                    original_message=message,
+                    agent=agent,
+                    deps=deps,
+                    message_history=message_history,
+                    max_tokens=self._settings.llm_max_tokens,
                 )
-                verification = await verify_answer(cleaned, deps.tool_outputs, llm_client)
-                if not verification.passed:
-                    cleaned = await correct_answer(
-                        answer=cleaned,
-                        verification=verification,
-                        tool_outputs=deps.tool_outputs,
-                        agent=agent,
-                        deps=deps,
-                        message_history=message_history,
-                        llm_client=llm_client,
-                        max_tokens=self._settings.llm_max_tokens,
-                    )
+                if corrected:
+                    cleaned = corrected
 
             chunk_size = 20
             for i in range(0, len(cleaned), chunk_size):
