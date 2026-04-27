@@ -254,10 +254,9 @@ class ChatService:
         elif result_text:
             cleaned = _clean_think_tags(result_text)
 
-            # 9.1 Harness: run checks only when sql_query was used (data accuracy)
-            # Knowledge QA (rag_search only) is not checked — text content numbers
-            # like page numbers, model IDs, protocol numbers are not "data"
-            if deps.has_sql_query:
+            # 9.1 Harness: run checks only when sql_query returned numeric data
+            # Skipped for: knowledge QA, metadata queries (table names, column lists)
+            if deps.has_numeric_sql:
                 check_results = run_all_checks(cleaned, deps.tool_outputs)
                 failed_checks = [r for r in check_results if not r.passed]
                 if failed_checks:

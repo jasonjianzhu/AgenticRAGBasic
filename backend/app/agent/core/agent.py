@@ -20,6 +20,19 @@ from app.agent.tools.sql_query import SQLQueryOutput
 logger = get_logger(__name__)
 
 
+def _has_numeric_values(rows: list[list]) -> bool:
+    """Check if query results contain numeric values (not just strings).
+
+    Returns False for metadata queries (table names, column names, etc.)
+    Returns True for business data queries (voltages, counts, metrics, etc.)
+    """
+    for row in rows[:5]:  # check first 5 rows
+        for val in row:
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Agent dependencies — injected into every tool call
 # ---------------------------------------------------------------------------
@@ -39,10 +52,10 @@ class AgentDeps:
     emit_event: Any = None  # async callable(event_type, data)
     # Collected citations from rag_search calls (keyed by index)
     collected_citations: dict = field(default_factory=dict)
-    # Collected raw tool outputs for post-answer verification (harness)
-    # Only sql_query outputs are verified — rag_search is text content, not data
+    # Collected raw sql_query outputs for post-answer verification (harness)
+    # Only populated when sql_query returns numeric data (not metadata queries)
     tool_outputs: list[str] = field(default_factory=list)
-    has_sql_query: bool = False
+    has_numeric_sql: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -193,8 +206,10 @@ def create_agent(
                 })
 
             sql_text_result = output.to_text()
-            deps.tool_outputs.append(sql_text_result)
-            deps.has_sql_query = True
+            # Only collect for harness if query returned numeric data
+            if _has_numeric_values(output.rows):
+                deps.tool_outputs.append(sql_text_result)
+                deps.has_numeric_sql = True
             return sql_text_result
 
         except Exception as e:
