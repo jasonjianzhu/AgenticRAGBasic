@@ -78,6 +78,10 @@
 | LLM过度补充用户没问的参数 | prompt约束只回答用户问的问题，不列出"未找到XXX" | ✅ |
 | minimax.py stream方法缩进错误导致500 | 加日志时async for循环体缩进丢失，修复缩进 | ✅ |
 | HTTP请求日志中间件导致SSE 500 | BaseHTTPMiddleware缓冲StreamingResponse，暂时移除中间件 | ✅ |
+| LLM数据编造（错误计算/换算） | harness模块：数值校验+LLM重跑修正+降级展示原始数据 | ✅ |
+| LLM不调工具直接编造数值 | harness check_no_tool_fabrication检测 | ✅ |
+| LLM过度推断（预计/趋势表明） | harness check_speculation模式匹配检测 | ✅ |
+| harness内联在chat.py中 | 抽象为独立模块 app/agent/harness/（checks.py + correction.py） | ✅ |
 
 ### 文档与配置
 

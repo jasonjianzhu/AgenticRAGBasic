@@ -641,6 +641,51 @@ Agent system prompt 中包含严格的回答原则，防止 LLM 编造信息：
 - 图表生成 prompt 增加示例（当前缺少图表类型选择和数据映射的示例）
 - Prompt 版本管理（通过 Langfuse）
 
+#### 6.6.5 Answer Harness（回答校验与修正）
+
+Prompt 约束无法 100% 防止 LLM 编造数据。Harness 是代码层面的硬约束，在 Agent 回答生成后、发送给用户前执行检测和修正。
+
+**编造问题分类与检测：**
+
+| 情况 | 说明 | 检测方式 | 当前状态 |
+|------|------|---------|---------|
+| 1. 不调工具直接编造 | Agent 未调任何工具就输出具体数值 | tool_outputs 为空 + 回答有数值 | ✅ 已实现 |
+| 2. 错误计算/换算 | 调了工具但自己算错（如 kWh→MWh 除错 1000） | 回答中数值不在工具原始输出中 | ✅ 已实现 |
+| 3. 张冠李戴 | 把 A 产品参数安到 B 产品上 | 实体+数值配对校验（需语义理解） | ❌ 靠 prompt 约束 |
+| 4. 过度推断 | 基于数据做预测（"预计下周会更严重"） | 推测性表述模式匹配 | ✅ 已实现 |
+| 5. 补充知识库没有的内容 | 用自身知识补充 chunk 中没有的信息 | 回答要点 vs chunk 模糊匹配（误伤率高） | ❌ 靠 prompt 约束 |
+
+**Harness 架构（`app/agent/harness/`）：**
+
+```
+harness/
+├── checks.py       # 检测层：run_all_checks() 执行所有检测
+│   ├── check_no_tool_fabrication()   # 情况 1
+│   ├── check_unverified_numbers()    # 情况 2
+│   └── check_speculation()           # 情况 4
+└── correction.py   # 修正层：correct_answer()
+    ├── 构建针对性修正 prompt（根据失败的检测类型）
+    ├── 重跑 LLM（temperature=0, tool_calls_limit=0）
+    └── 修正失败 → 降级展示原始数据
+```
+
+**修正流程：**
+
+```mermaid
+graph LR
+    A[Agent 回答] --> B[run_all_checks]
+    B -->|全部通过| C[直接输出]
+    B -->|有检测失败| D[correct_answer]
+    D -->|修正成功| E[输出修正后的回答]
+    D -->|修正失败| F[展示工具原始数据]
+```
+
+**设计原则：**
+- 检测在修正之前，只有检测到问题才触发修正，不增加正常回答的延迟
+- 修正使用 temperature=0 + 禁止工具调用，最大限度减少二次编造
+- 修正失败绝不展示错误数据，降级为原始数据展示
+- 情况 3 和 5 检测难度高、误伤率高，暂不做硬拦截，靠 prompt 约束 + 评测体系闭环优化
+
 ### 6.7 Agent 与 RAG 的职责边界
 
 | RAG 层管理 | Agent 层管理 |
