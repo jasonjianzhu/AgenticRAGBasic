@@ -58,7 +58,10 @@ class SessionService:
         """Get recent messages formatted for LLM context.
 
         Returns messages in the format expected by PydanticAI:
-        [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
+        [{"role": "user", "content": "...", "metadata": {...}}, ...]
+
+        Includes metadata (tool_calls, charts) so that _build_message_history
+        can reconstruct tool call/return parts for multi-turn context.
         """
         window = self._settings.agent_context_window
         messages = await self._repo.get_recent_messages(session_id, limit=window)
@@ -67,7 +70,11 @@ class SessionService:
         for msg in messages:
             # Only include user and assistant messages in LLM context
             if msg.role in ("user", "assistant"):
-                context.append({"role": msg.role, "content": msg.content})
+                context.append({
+                    "role": msg.role,
+                    "content": msg.content,
+                    "metadata": msg.metadata_ if msg.metadata_ else {},
+                })
         return context
 
     async def update_title_from_first_message(self, session_id: uuid.UUID, content: str) -> None:

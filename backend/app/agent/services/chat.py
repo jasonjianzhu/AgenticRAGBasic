@@ -14,7 +14,11 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
     PartDeltaEvent,
+    TextPartDelta,
+    ThinkingPart,
     ThinkingPartDelta,
+    ToolCallPart,
+    ToolReturnPart,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,8 +54,7 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
     model_id = settings.llm_model
 
     if "/anthropic" in base_url:
-        # Anthropic-compatible API (e.g. MiniMax Anthropic endpoint)
-        # PydanticAI anthropic: prefix uses Anthropic SDK
+        # Anthropic-compatible API (e.g. DeepSeek, MiniMax Anthropic endpoint)
         os.environ.setdefault("ANTHROPIC_API_KEY", api_key)
         from pydantic_ai.providers.anthropic import AnthropicProvider
         import anthropic
@@ -63,7 +66,7 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
         # OpenAI-compatible API
         os.environ.setdefault("OPENAI_API_KEY", api_key)
         os.environ.setdefault("OPENAI_BASE_URL", base_url)
-        provider = None  # use default openai provider
+        provider = None
         model_name = f"openai:{model_id}"
         logger.info("agent_using_openai_provider", base_url=base_url, model=model_id)
 
@@ -99,9 +102,12 @@ def _clean_think_tags(text: str) -> str:
 class ChatService:
     """Orchestrates Agent chat with real-time SSE streaming.
 
-    Uses agent.run() with event_stream_handler for true streaming:
-    - Text tokens streamed in real-time as LLM generates them
-    - Tool events (tool_start, tool_result, citation, chart) emitted during execution
+    Architecture: agent.run() in background task + event_stream_handler for streaming.
+    - agent.run() runs in asyncio.create_task, doesn't block the SSE generator
+    - event_stream_handler captures TextPartDelta (real-time text) and ThinkingPartDelta
+    - Tool events emitted via event queue from within tool functions
+    - result.response.text used for persistence — always complete, no truncation
+    - result.new_messages() captures tool call history for multi-turn context
     """
 
     def __init__(
@@ -144,13 +150,12 @@ class ChatService:
         if msg_count <= 1:
             await self._session_service.update_title_from_first_message(session_id, message)
 
-        # Commit session + user message so background task can reference them
         await self._db_session.commit()
 
         # 2. Build history
         history = await self._session_service.get_context_messages(session_id)
 
-        # 3. Event queue — both tool callbacks and LLM stream events go here
+        # 3. Event queue — all events (text tokens, thinking, tool events) go through here
         event_queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
         async def emit_event(event_type: str, data: Any) -> None:
@@ -175,25 +180,97 @@ class ChatService:
         agent = await _get_or_create_agent(self._settings)
         message_history = self._build_message_history(history[:-1] if history else [])
 
-        # 6. Event stream handler — only for thinking display, not text streaming
-        # Text output uses result.response.text after agent completes (avoids truncation)
+        # 6. event_stream_handler — captures text and thinking deltas in real-time
+        #
+        # DeepSeek via OpenAI-compatible API sends thinking content as <think>...</think>
+        # tags inside TextPartDelta (not as ThinkingPartDelta). We parse the tags in
+        # real-time to split into "thinking" and "token" events.
+        #
+        # State machine: _in_think tracks whether we're inside a <think> block.
+
+        _in_think = False
 
         async def stream_handler(run_ctx, event_stream):
+            nonlocal _in_think
             async for event in event_stream:
                 if isinstance(event, PartDeltaEvent):
                     delta = event.delta
                     if isinstance(delta, ThinkingPartDelta):
+                        # Native thinking support (Anthropic-style) — forward directly
                         content = delta.content_delta
                         if content:
-                            await event_queue.put({"event": "thinking", "data": {"content": content}})
+                            await event_queue.put({
+                                "event": "thinking",
+                                "data": {"content": content},
+                            })
+                    elif isinstance(delta, TextPartDelta):
+                        content = delta.content_delta
+                        if not content:
+                            continue
+                        # Parse <think> tags from the text stream
+                        await _parse_think_tags(content, event_queue)
 
-        # 7. Run Agent in background with streaming
+        async def _parse_think_tags(text: str, queue: asyncio.Queue) -> None:
+            """Parse <think>...</think> tags from streaming text chunks.
+
+            Handles tags that may be split across multiple chunks:
+            - chunk1: "Let me <thi"  chunk2: "nk>reasoning"  chunk3: "</think>answer"
+            """
+            nonlocal _in_think
+            remaining = text
+
+            while remaining:
+                if _in_think:
+                    # Inside <think> block — look for closing tag
+                    close_idx = remaining.find("</think>")
+                    if close_idx != -1:
+                        # Found closing tag — emit thinking content, switch to text mode
+                        think_content = remaining[:close_idx]
+                        if think_content:
+                            await queue.put({
+                                "event": "thinking",
+                                "data": {"content": think_content},
+                            })
+                        _in_think = False
+                        remaining = remaining[close_idx + len("</think>"):]
+                    else:
+                        # No closing tag yet — all remaining is thinking content
+                        if remaining:
+                            await queue.put({
+                                "event": "thinking",
+                                "data": {"content": remaining},
+                            })
+                        remaining = ""
+                else:
+                    # Outside <think> block — look for opening tag
+                    open_idx = remaining.find("<think>")
+                    if open_idx != -1:
+                        # Found opening tag — emit text before it, switch to think mode
+                        text_before = remaining[:open_idx]
+                        if text_before:
+                            await queue.put({
+                                "event": "token",
+                                "data": {"content": text_before},
+                            })
+                        _in_think = True
+                        remaining = remaining[open_idx + len("<think>"):]
+                    else:
+                        # No opening tag — all remaining is regular text
+                        if remaining:
+                            await queue.put({
+                                "event": "token",
+                                "data": {"content": remaining},
+                            })
+                        remaining = ""
+
+        # 7. Run agent in background task
         result_text = ""
         agent_error = None
         collected_charts: list[dict] = []
+        new_messages: list[ModelMessage] = []
 
         async def run_agent():
-            nonlocal result_text, agent_error
+            nonlocal result_text, agent_error, new_messages
             try:
                 result = await agent.run(
                     message,
@@ -207,72 +284,69 @@ class ChatService:
                     event_stream_handler=stream_handler,
                 )
                 result_text = result.response.text or ""
-                logger.info("agent_result", text_len=len(result_text))
+                new_messages = result.new_messages()
+                logger.info("agent_run_complete", text_len=len(result_text))
             except Exception as e:
                 logger.error("agent_run_error", error=str(e))
                 agent_error = str(e)
             finally:
-                # Save assistant message with independent DB session
-                logger.info("agent_save_start", has_text=bool(result_text), text_len=len(result_text))
-                if result_text:
-                    try:
-                        from app.common.db.session import async_session_factory
-                        from app.common.db.models import ChatMessage
-                        async with async_session_factory() as save_session:
-                            msg = ChatMessage(
-                                session_id=session_id,
-                                role="assistant",
-                                content=_clean_think_tags(result_text),
-                                message_type="text",
-                                metadata_={"charts": collected_charts} if collected_charts else {},
-                            )
-                            save_session.add(msg)
-                            await save_session.commit()
-                    except Exception as e:
-                        logger.error("save_assistant_message_error", error=str(e))
                 await event_queue.put(None)  # signal done
 
         agent_task = asyncio.create_task(run_agent())
 
-        # 8. Yield all events (tool events + streaming tokens)
+        # 8. Yield all events from queue until agent completes
         while True:
             event = await event_queue.get()
             if event is None:
                 break
-            # Collect chart data for persistence
             if event["event"] == "chart":
                 collected_charts.append(event["data"])
             yield event
 
         await agent_task
 
-        # 9. Stream the final text as tokens (complete, no truncation)
+        # 9. Save assistant message + tool call history
+        if result_text:
+            cleaned_text = _clean_think_tags(result_text)
+            try:
+                tool_calls_meta, final_thinking = self._extract_tool_calls_meta(new_messages)
+                from app.common.db.session import async_session_factory
+                from app.common.db.models import ChatMessage
+                async with async_session_factory() as save_session:
+                    msg = ChatMessage(
+                        session_id=session_id,
+                        role="assistant",
+                        content=cleaned_text,
+                        message_type="text",
+                        metadata_={
+                            "charts": collected_charts if collected_charts else [],
+                            "tool_calls": tool_calls_meta if tool_calls_meta else [],
+                            "final_thinking": final_thinking if final_thinking else {},
+                        },
+                    )
+                    save_session.add(msg)
+                    await save_session.commit()
+            except Exception as e:
+                logger.error("save_assistant_message_error", error=str(e))
+
+        # 10. Emit error or citations
         if agent_error:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
         elif result_text:
-            cleaned = _clean_think_tags(result_text)
-
-            chunk_size = 20
-            for i in range(0, len(cleaned), chunk_size):
-                yield {"event": "token", "data": {"content": cleaned[i:i + chunk_size]}}
-
-            # 9.5. Emit citations matched by document title + page (not index numbers)
+            cleaned_text = _clean_think_tags(result_text)
             if deps.collected_citations:
-                # Extract all 【...】 references from the answer
-                cited_keys = re.findall(r'【([^】]+)】', cleaned)
-                emitted = set()
+                cited_keys = re.findall(r'【([^】]+)】', cleaned_text)
+                emitted: set[str] = set()
                 for key in cited_keys:
                     key = key.strip()
                     if key in emitted:
                         continue
-                    # Exact match
                     if key in deps.collected_citations:
                         cit = deps.collected_citations[key]
                         cit["index"] = len(emitted) + 1
                         yield {"event": "citation", "data": cit}
                         emitted.add(key)
                     else:
-                        # Fuzzy match: find citation whose key contains the referenced text
                         for cite_key, cit in deps.collected_citations.items():
                             if cite_key in key or key in cite_key:
                                 if cite_key not in emitted:
@@ -281,7 +355,7 @@ class ChatService:
                                     emitted.add(cite_key)
                                 break
 
-        # 10. Done
+        # 11. Done
         _chat_duration = round((_time.monotonic() - _chat_start) * 1000)
         logger.info("agent_chat_complete",
                      session_id=str(session_id),
@@ -291,12 +365,129 @@ class ChatService:
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 
     def _build_message_history(self, history: list[dict]) -> list[ModelMessage]:
+        """Build PydanticAI message history from DB records.
+
+        Includes tool call/return parts WITH thinking blocks from metadata.
+        DeepSeek requires thinking blocks (content + signature) to be passed
+        back alongside tool calls in history.
+
+        IMPORTANT: ThinkingPart must have provider_name="anthropic" so that
+        PydanticAI's Anthropic provider serializes it as a proper thinking block
+        (not as <think> text). Without this, DeepSeek returns 400.
+        """
         messages: list[ModelMessage] = []
         for msg in history:
             role = msg["role"]
             content = msg["content"]
+            metadata = msg.get("metadata", {}) or {}
+
             if role == "user":
                 messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
             elif role == "assistant":
-                messages.append(ModelResponse(parts=[TextPart(content=content)]))
+                tool_calls_meta = metadata.get("tool_calls", [])
+
+                if tool_calls_meta:
+                    for tc in tool_calls_meta:
+                        tool_name = tc.get("tool_name", "")
+                        tool_call_id = tc.get("tool_call_id", f"tc_{tool_name}")
+                        tool_args = tc.get("args", {})
+                        tool_result_text = tc.get("result_summary", "")
+                        thinking_content = tc.get("thinking_content", "")
+                        thinking_signature = tc.get("thinking_signature")
+
+                        # ModelResponse: ThinkingPart + ToolCallPart
+                        response_parts: list = []
+                        if thinking_content and thinking_signature:
+                            response_parts.append(ThinkingPart(
+                                content=thinking_content,
+                                signature=thinking_signature,
+                                provider_name="anthropic",
+                            ))
+                        response_parts.append(ToolCallPart(
+                            tool_name=tool_name,
+                            args=tool_args if isinstance(tool_args, dict) else {},
+                            tool_call_id=tool_call_id,
+                        ))
+                        messages.append(ModelResponse(parts=response_parts))
+
+                        # ModelRequest: ToolReturnPart
+                        messages.append(ModelRequest(parts=[
+                            ToolReturnPart(
+                                tool_name=tool_name,
+                                content=tool_result_text,
+                                tool_call_id=tool_call_id,
+                            )
+                        ]))
+
+                # Final text response — include thinking if available
+                final_thinking = metadata.get("final_thinking", {})
+                final_parts: list = []
+                ft_content = final_thinking.get("thinking_content", "")
+                ft_signature = final_thinking.get("thinking_signature")
+                if ft_content and ft_signature:
+                    final_parts.append(ThinkingPart(
+                        content=ft_content,
+                        signature=ft_signature,
+                        provider_name="anthropic",
+                    ))
+                final_parts.append(TextPart(content=content))
+                messages.append(ModelResponse(parts=final_parts))
+
         return messages
+
+    @staticmethod
+    def _extract_tool_calls_meta(new_messages: list[ModelMessage]) -> tuple[list[dict], dict]:
+        """Extract tool call metadata + thinking from PydanticAI messages for DB persistence.
+
+        Returns:
+            (tool_calls, final_thinking) where final_thinking has content + signature
+            for the last assistant response's thinking block.
+        """
+        tool_calls: list[dict] = []
+        final_thinking: dict = {}
+
+        # Collect tool returns keyed by tool_call_id
+        returns_by_id: dict[str, str] = {}
+        for msg in new_messages:
+            if isinstance(msg, ModelRequest):
+                for part in msg.parts:
+                    if isinstance(part, ToolReturnPart):
+                        content = part.content
+                        if isinstance(content, str):
+                            summary = content[:500]
+                        else:
+                            summary = str(content)[:500]
+                        returns_by_id[part.tool_call_id] = summary
+
+        # Extract tool calls with thinking, and track final response thinking
+        for msg in new_messages:
+            if isinstance(msg, ModelResponse):
+                thinking_content = ""
+                thinking_signature = None
+                has_tool_call = False
+
+                for part in msg.parts:
+                    if isinstance(part, ThinkingPart):
+                        thinking_content = part.content or ""
+                        thinking_signature = part.signature
+
+                for part in msg.parts:
+                    if isinstance(part, ToolCallPart):
+                        has_tool_call = True
+                        tool_calls.append({
+                            "tool_name": part.tool_name,
+                            "tool_call_id": part.tool_call_id,
+                            "args": part.args if isinstance(part.args, dict) else {},
+                            "result_summary": returns_by_id.get(part.tool_call_id, ""),
+                            "thinking_content": thinking_content,
+                            "thinking_signature": thinking_signature,
+                        })
+
+                # If this response has TextPart (final answer) with thinking, save it
+                if not has_tool_call and thinking_content:
+                    final_thinking = {
+                        "thinking_content": thinking_content,
+                        "thinking_signature": thinking_signature,
+                    }
+
+        return tool_calls, final_thinking

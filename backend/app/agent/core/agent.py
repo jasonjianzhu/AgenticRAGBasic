@@ -70,27 +70,31 @@ def create_agent(
     """Create a PydanticAI Agent with all tools registered.
 
     Args:
-        model_name: PydanticAI model identifier (e.g. "openai:gpt-4o", "anthropic:model").
+        model_name: PydanticAI model identifier (e.g. "openai:deepseek-v4-pro", "anthropic:deepseek-v4-pro").
         system_prompt: Full system prompt including DB schema.
         provider: Optional provider instance (e.g. AnthropicProvider with custom base_url).
 
     Returns:
         Configured Agent instance.
     """
-    kwargs: dict[str, Any] = {
-        "instructions": system_prompt,
-        "deps_type": AgentDeps,
-        "output_type": str,
-        "retries": 2,
-    }
-
-    # If a custom provider is given, create a Model object instead of using string
     if provider:
         from pydantic_ai.models.anthropic import AnthropicModel
         model = AnthropicModel(model_name.replace("anthropic:", ""), provider=provider)
-        agent = Agent(model, **kwargs)
+        agent = Agent(
+            model,
+            instructions=system_prompt,
+            deps_type=AgentDeps,
+            output_type=str,
+            retries=2,
+        )
     else:
-        agent = Agent(model_name, **kwargs)
+        agent = Agent(
+            model_name,
+            instructions=system_prompt,
+            deps_type=AgentDeps,
+            output_type=str,
+            retries=2,
+        )
 
     # ── RAG Search Tool ──────────────────────────────────────
 

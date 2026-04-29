@@ -16,13 +16,19 @@
 | 会话管理 | 创建、列表、详情、删除（chat_sessions + chat_messages） | ✅ |
 | 多轮对话 | 历史消息传入 Agent，支持追问，上下文窗口 20 条 | ✅ |
 | SSE 流式输出 | event_stream_handler 实现 thinking 实时展示 + 完整文本输出 | ✅ |
-| Thinking 过程展示 | ThinkingPartDelta 实时展示，回答完成后清除 | ✅ |
-| 工具调用次数限制 | UsageLimits 硬限制 6 次 + prompt 软约束（rag 3/sql 2/chart 1） | ✅ |
+| Thinking 过程展示 | ThinkingPartDelta 实时展示，回答完成后清除 | ✅ || 工具调用次数限制 | UsageLimits 硬限制 6 次 + prompt 软约束（rag 3/sql 2/chart 1） | ✅ |
 | Agent 对话 API | POST /agent/chat（SSE）、GET/DELETE /agent/sessions | ✅ |
 | 业务库管理 API | GET /agent/db/schema、POST /agent/db/test | ✅ |
 | Mock 业务数据库 | Docker 自动建表灌数据（devices/metrics/alarms/maintenance） | ✅ |
 | Alembic 迁移 003 | chat_sessions + chat_messages 表 | ✅ |
 | MiniMax Anthropic API | Agent + RAG 统一使用 Anthropic-compatible API，thinking 从根源分离 | ✅ |
+| DeepSeek V4 Pro 接入 | 切换到 DeepSeek V4 Pro（Anthropic-compatible API），1M 上下文窗口 | ✅ |
+| 真流式文本输出 | event_stream_handler 捕获 TextPartDelta，逐 token 推送前端，不再等完成后切片 | ✅ |
+| Thinking 双路径解析 | ThinkingPartDelta（原生）+ `<think>` 标签解析（兜底），兼容不同 provider | ✅ |
+| 工具调用历史持久化 | tool call + thinking content/signature 存入 ChatMessage metadata | ✅ |
+| 多轮工具上下文注入 | _build_message_history 从 DB 读取工具调用记录+thinking，注入多轮上下文，追问时模型能看到上一轮查了什么 | ✅ |
+| SQL 查询结果全量返回 | to_text() 分层策略：≤30行全量Markdown表格，>30行前20行+统计摘要，消除模型脑补 | ✅ |
+| 防幻觉方案设计 | docs/ANTI_HALLUCINATION_DESIGN.md，5层防线（Schema增强/Few-shot/Dry-run/完整数据/数值校验） | ✅ |
 | 图表配置持久化 | chart 数据保存到 message metadata，切换页面后图表可恢复 | ✅ |
 | 会话数据及时提交 | session + user 消息创建后立即 commit，解决后台 task 外键约束 | ✅ |
 
@@ -86,6 +92,9 @@
 | harness强制重跑干扰闲聊 | 去掉强制重跑，harness模块保留为扩展点，当前不拦截 | ✅ |
 | 引用编号[1][2]容易搞混 | 改为【文档名 第X页】语义标识，代码做确定性字符串匹配 | ✅ |
 | SQL查询timedelta类型JSON序列化报错 | executor._serialize_row增加timedelta→str转换 | ✅ |
+| SQL查询结果只返回3行导致模型编造 | to_text()从3行摘要改为分层全量返回（≤30行完整表格，>30行摘要+统计） | ✅ |
+| 多轮追问DeepSeek 400报错 | _build_message_history重建历史时带上ThinkingPart（provider_name="anthropic" + signature），满足DeepSeek thinking传回要求 | ✅ |
+| 文本流式输出是伪流式 | event_stream_handler增加TextPartDelta捕获，实现真逐token流式 | ✅ |
 
 ### 文档与配置
 
@@ -106,13 +115,19 @@
 
 | 项目 | 说明 | 优先级 |
 |------|------|--------|
+| Schema 语义增强 | 枚举值、表间关系、数据范围自动加载注入 prompt（防幻觉第①层） | P1 |
+| Few-shot 查询示例 | system prompt 注入高频场景的 (问题, SQL) 示例对（防幻觉第②层） | P1 |
+| SQL dry-run 预检 | EXPLAIN 预检 + 错误反馈让模型自纠（防幻觉第③层） | P1 |
+| 数值确定性校验 | harness 聚焦 SQL 场景，代码层校验回答数值是否可追溯到查询结果（防幻觉第⑤层） | P1 |
+| RAG closing instruction 强化 | 检索结果末尾追加更强的约束指令 | P1 |
+| Prompt 负面示例 | system prompt 增加"不要做什么"的具体错误示例 | P1 |
 | HTTP请求日志 | 用纯ASGI中间件实现请求日志和request_id串联，BaseHTTPMiddleware与SSE不兼容 | P2 |
 | 图表 prompt 优化 | system prompt 增加图表生成示例 | P2 |
 | 工具调用失败降级 | 单个工具失败时返回错误说明，不中断对话 | P2 |
-| 多轮对话上下文优化 | 工具调用结果纳入历史消息 | P2 |
 | 会话标题智能生成 | 用 LLM 生成更好的标题 | P2 |
 | 管理后台样式适配 | 管理后台页面适配新主题色 | P2 |
-| debug 日志清理 | 移除 agent_result / agent_save_start 等调试日志 | P2 |
+| 查询模板（轻量 Semantic Layer） | 高频场景参数化查询模板，LLM 只填参数（防幻觉中期方案） | P2 |
+| 结构化输出 | output_type 声明数据来源，代码层交叉验证 | P2 |
 
 ### 低优先级
 
