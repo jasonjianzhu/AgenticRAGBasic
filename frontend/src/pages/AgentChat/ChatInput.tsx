@@ -47,16 +47,36 @@ const ChatInput: React.FC<Props> = ({
       }}
     >
       {kbs.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 8 }}>
           <Select
             mode="multiple"
-            placeholder="选择知识库（可选，用于知识问答）"
+            placeholder="知识库"
             value={selectedKBs}
             onChange={onKBChange}
-            style={{ width: '100%' }}
+            style={{ width: 100 }}
             size="small"
+            maxTagCount={1}
             options={kbs.map((kb) => ({ label: kb.name, value: kb.id }))}
             allowClear
+            tagRender={(props) => {
+              const { label, closable, onClose } = props;
+              return (
+                <span
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '0 8px', borderRadius: 6, fontSize: 12,
+                    background: 'rgba(0,166,81,0.1)', color: '#00A651',
+                    border: '1px solid rgba(0,166,81,0.2)',
+                    maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {label}
+                  {closable && (
+                    <span onClick={onClose} style={{ cursor: 'pointer', fontSize: 10 }}>✕</span>
+                  )}
+                </span>
+              );
+            }}
           />
         </div>
       )}
@@ -65,14 +85,14 @@ const ChatInput: React.FC<Props> = ({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入问题，按 Enter 发送..."
+          placeholder="问一问"
           autoSize={{ minRows: 1, maxRows: 5 }}
           disabled={streaming}
           style={{
             flex: 1,
             borderRadius: 12,
             padding: '10px 14px',
-            fontSize: 14,
+            fontSize: 15,
             background: 'rgba(255, 255, 255, 0.9)',
             border: '1px solid rgba(54, 207, 201, 0.2)',
           }}

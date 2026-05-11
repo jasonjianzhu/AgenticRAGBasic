@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, List, Typography, Popconfirm, Empty, Spin } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { listSessions, deleteSession, getSession } from '@/api/agent';
 import type { SessionItem, AgentMessage } from '@/types/agent';
 
@@ -17,6 +18,7 @@ const SessionSidebar: React.FC<Props> = ({
   onNewSession,
   onSelectSession,
 }) => {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -164,6 +166,20 @@ const SessionSidebar: React.FC<Props> = ({
             )}
           />
         )}
+      </div>
+      <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <div
+          onClick={() => navigate('/')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px',
+            borderRadius: 8, cursor: 'pointer', fontSize: 13, color: '#8c8c8c',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)'; e.currentTarget.style.color = '#555'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#8c8c8c'; }}
+        >
+          <ArrowLeftOutlined /> 返回首页
+        </div>
       </div>
     </div>
   );

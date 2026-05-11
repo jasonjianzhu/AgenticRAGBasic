@@ -218,7 +218,7 @@ const AgentChatPage: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100%', padding: 16, gap: 12 }}>
+    <div style={{ display: 'flex', flex: 1, padding: 16, gap: 12 }}>
       <SessionSidebar
         currentSessionId={sessionId}
         onNewSession={handleNewSession}
@@ -229,22 +229,90 @@ const AgentChatPage: React.FC = () => {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
+          position: 'relative',
           background: 'rgba(255, 255, 255, 0.45)',
           backdropFilter: 'blur(10px)',
           borderRadius: 16,
-          border: '1px solid rgba(54, 207, 201, 0.1)',
+          border: '1px solid rgba(0,166,81,0.08)',
           overflow: 'hidden',
         }}
       >
-        <MessageList messages={messages} />
-        <ChatInput
-          kbs={kbs}
-          selectedKBs={selectedKBs}
-          onKBChange={setSelectedKBs}
-          onSend={handleSend}
-          onStop={handleStop}
-          streaming={streaming}
-        />
+        {/* Watermark */}
+        <div
+          style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+            display: 'flex', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center',
+            gap: '80px 140px', padding: 100, opacity: 0.04,
+            transform: 'rotate(-5deg) scale(1.05)', userSelect: 'none',
+          }}
+        >
+          {Array.from({ length: 12 }, (_, i) => (
+            <span key={i} style={{ fontSize: 42, fontWeight: 900, color: '#00A651', letterSpacing: 12, whiteSpace: 'nowrap', lineHeight: 1 }}>
+              Jinko ESS
+            </span>
+          ))}
+        </div>
+
+        {messages.length === 0 && !streaming ? (
+          <div style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            paddingTop: 'calc(33vh - 100px)', position: 'relative', zIndex: 1,
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: 18 }}>
+              <span style={{ fontSize: 20, fontWeight: 600, color: '#555', letterSpacing: 0.5 }}>
+                想了解什么吗
+              </span>
+            </div>
+            <div style={{ width: '66%', minWidth: 600, maxWidth: 900, marginBottom: 20 }}>
+              <ChatInput
+                kbs={kbs}
+                selectedKBs={selectedKBs}
+                onKBChange={setSelectedKBs}
+                onSend={handleSend}
+                onStop={handleStop}
+                streaming={streaming}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {['💬 知识问答', '📊 数据分析', '📈 图表生成'].map((label) => (
+                <div
+                  key={label}
+                  onClick={() => handleSend(label.replace(/^.\s/, ''))}
+                  style={{
+                    padding: '10px 20px', borderRadius: 12, cursor: 'pointer', fontSize: 13,
+                    fontWeight: 500, color: '#555', transition: 'all 0.2s',
+                    background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,166,81,0.12)',
+                    boxShadow: '0 1px 6px rgba(0,0,0,0.03)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#00A651';
+                    e.currentTarget.style.background = 'rgba(0,166,81,0.04)';
+                    e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,166,81,0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(0,166,81,0.12)';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.7)';
+                    e.currentTarget.style.boxShadow = '0 1px 6px rgba(0,0,0,0.03)';
+                  }}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <MessageList messages={messages} />
+            <ChatInput
+              kbs={kbs}
+              selectedKBs={selectedKBs}
+              onKBChange={setSelectedKBs}
+              onSend={handleSend}
+              onStop={handleStop}
+              streaming={streaming}
+            />
+          </>
+        )}
       </div>
     </div>
   );
