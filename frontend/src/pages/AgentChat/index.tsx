@@ -27,6 +27,7 @@ const AgentChatPage: React.FC = () => {
   const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const abortRef = useRef<AbortController | null>(null);
+  const blockRestoreRef = useRef(false);
 
   // Load KBs
   useEffect(() => {
@@ -40,10 +41,12 @@ const AgentChatPage: React.FC = () => {
   useEffect(() => {
     const savedId = localStorage.getItem(STORAGE_KEY);
     if (!savedId) return;
+    let cancelled = false;
 
     const loadSession = (id: string) => {
       getSession(id)
         .then((detail) => {
+          if (cancelled || blockRestoreRef.current) return;
           console.log('[AgentChat] loadSession', id, 'messages:', detail.messages.length);
           const msgs: AgentMessage[] = detail.messages
             .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
@@ -61,17 +64,22 @@ const AgentChatPage: React.FC = () => {
 
           // If last message is from user (assistant still generating), retry after delay
           const lastMsg = detail.messages[detail.messages.length - 1];
-          if (lastMsg && lastMsg.role === 'user') {
+          if (lastMsg && lastMsg.role === 'user' && !cancelled && !blockRestoreRef.current) {
             setTimeout(() => loadSession(id), 3000);
           }
         })
         .catch((err) => {
+          if (cancelled || blockRestoreRef.current) return;
           console.error('[AgentChat] loadSession failed', err);
           localStorage.removeItem(STORAGE_KEY);
         });
     };
 
     loadSession(savedId);
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Persist sessionId to localStorage
@@ -84,11 +92,13 @@ const AgentChatPage: React.FC = () => {
   }, [sessionId]);
 
   const handleNewSession = useCallback(() => {
+    blockRestoreRef.current = true;
     setSessionId(undefined);
     setMessages([]);
   }, []);
 
   const handleSelectSession = useCallback((sid: string, msgs: AgentMessage[]) => {
+    blockRestoreRef.current = true;
     setSessionId(sid);
     setMessages(msgs);
   }, []);
@@ -96,6 +106,7 @@ const AgentChatPage: React.FC = () => {
   const handleSend = useCallback(
     (query: string) => {
       if (!query.trim() || streaming) return;
+      blockRestoreRef.current = true;
 
       const userMsg: AgentMessage = { role: 'user', content: query.trim() };
       const assistantMsg: AgentMessage = {

@@ -16,14 +16,34 @@ interface Props {
 }
 
 const MessageList: React.FC<Props> = ({ messages }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef(0);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = containerRef.current;
+    if (!container) return;
+
+    const currentCount = messages.length;
+    const prevCount = prevCountRef.current;
+    prevCountRef.current = currentCount;
+
+    // Keep the first user question visible when entering the chat from the empty state.
+    if (currentCount <= 2) {
+      container.scrollTop = 0;
+      return;
+    }
+
+    const shouldAnimate = prevCount > 0;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: shouldAnimate ? 'smooth' : 'auto',
+    });
   }, [messages]);
 
   return (
     <div
+      ref={containerRef}
       style={{
         flex: 1,
         overflow: 'auto',
