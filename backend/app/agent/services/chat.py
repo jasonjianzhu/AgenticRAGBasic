@@ -11,14 +11,15 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    TextPart,
-    UserPromptPart,
     PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
     ToolReturnPart,
+    UserPromptPart,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -193,7 +194,16 @@ class ChatService:
         async def stream_handler(run_ctx, event_stream):
             nonlocal _in_think
             async for event in event_stream:
-                if isinstance(event, PartDeltaEvent):
+                if isinstance(event, PartStartEvent):
+                    part = event.part
+                    if isinstance(part, ThinkingPart) and part.content:
+                        await event_queue.put({
+                            "event": "thinking",
+                            "data": {"content": part.content},
+                        })
+                    elif isinstance(part, TextPart) and part.content:
+                        await _parse_think_tags(part.content, event_queue)
+                elif isinstance(event, PartDeltaEvent):
                     delta = event.delta
                     if isinstance(delta, ThinkingPartDelta):
                         # Native thinking support (Anthropic-style) — forward directly
