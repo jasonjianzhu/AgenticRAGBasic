@@ -99,7 +99,7 @@ def create_agent(
     # ── RAG Search Tool ──────────────────────────────────────
 
     @agent.tool
-    async def kb_search(ctx: RunContext[AgentDeps], query: str, top_k: int = 5) -> str:
+    async def kb_search(ctx: RunContext[AgentDeps], query: str = "", top_k: int = 5) -> str:
         """检索知识库，查找技术文档、产品手册、FAQ 中的相关内容。
 
         Args:
@@ -107,9 +107,20 @@ def create_agent(
             top_k: 返回结果数量，默认5
         """
         deps = ctx.deps
+        if not query.strip():
+            prompt_text = ctx.prompt if isinstance(ctx.prompt, str) else ""
+            query = prompt_text.strip() or query
+        if not query.strip():
+            logger.warning("kb_search_empty_query", raw_query=query)
+            if deps.emit_event:
+                await deps.emit_event("tool_result", {
+                    "tool": "kb_search",
+                    "summary": "检索失败: 缺少 query 参数",
+                })
+            return "知识库检索失败: kb_search 缺少非空 query 参数，请用完整检索问题重新调用。"
         if deps.emit_event:
             await deps.emit_event("tool_start", {
-                "tool": "rag_search",
+                "tool": "kb_search",
                 "args_summary": f"检索: {query[:50]}",
             })
 
