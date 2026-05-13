@@ -36,7 +36,7 @@ const AgentLayout: React.FC = () => (
           储能Agent问答平台
         </span>
         <img
-          src="/assets/jinko-logo-cn.png"
+          src="/assets/jinko-logo-cn.svg"
           alt="晶科储能"
           style={{ height: 35, objectFit: 'contain' }}
         />

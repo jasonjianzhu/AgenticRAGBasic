@@ -255,9 +255,9 @@ const AgentChatPage: React.FC = () => {
           }}>
             <div style={{ marginBottom: 20 }}>
               <img
-                src="/assets/jinko-logo-en.png"
+                src="/assets/jinko-logo-en.svg"
                 alt="Jinko ESS"
-                style={{ height: 60, objectFit: 'contain', mixBlendMode: 'multiply' }}
+                style={{ height: 60, objectFit: 'contain' }}
               />
             </div>
             <div style={{ textAlign: 'center', marginBottom: 18 }}>
@@ -307,9 +307,9 @@ const AgentChatPage: React.FC = () => {
             <MessageList messages={messages} />
             <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
               <img
-                src="/assets/jinko-logo-en.png"
+                src="/assets/jinko-logo-en.svg"
                 alt="Jinko ESS"
-                style={{ height: 40, objectFit: 'contain', mixBlendMode: 'multiply' }}
+                style={{ height: 40, objectFit: 'contain' }}
               />
             </div>
             <ChatInput
