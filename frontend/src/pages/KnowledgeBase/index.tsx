@@ -156,7 +156,7 @@ const KnowledgeBasePage: React.FC = () => {
       dataIndex: 'name',
       key: 'name',
       render: (text: string, record: KBResponse) => (
-        <a onClick={() => navigate(`/documents?kb=${record.id}`)}>{text}</a>
+        <a onClick={() => navigate(`/admin/documents?kb=${record.id}`)}>{text}</a>
       ),
     },
     {
