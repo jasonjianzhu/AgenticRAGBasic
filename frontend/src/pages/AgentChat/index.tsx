@@ -248,29 +248,20 @@ const AgentChatPage: React.FC = () => {
           overflow: 'hidden',
         }}
       >
-        {/* Watermark */}
-        <div
-          style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-            display: 'flex', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center',
-            gap: '80px 140px', padding: 100, opacity: 0.04,
-            transform: 'rotate(-5deg) scale(1.05)', userSelect: 'none',
-          }}
-        >
-          {Array.from({ length: 12 }, (_, i) => (
-            <span key={i} style={{ fontSize: 42, fontWeight: 900, color: '#00A651', letterSpacing: 12, whiteSpace: 'nowrap', lineHeight: 1 }}>
-              Jinko ESS
-            </span>
-          ))}
-        </div>
-
         {messages.length === 0 && !streaming ? (
           <div style={{
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            paddingTop: 'calc(33vh - 100px)', position: 'relative', zIndex: 1,
+            paddingTop: 'calc(33vh - 130px)', position: 'relative', zIndex: 1,
           }}>
+            <div style={{ marginBottom: 20 }}>
+              <img
+                src="/assets/jinko-logo-en.png"
+                alt="Jinko ESS"
+                style={{ height: 60, objectFit: 'contain', mixBlendMode: 'multiply' }}
+              />
+            </div>
             <div style={{ textAlign: 'center', marginBottom: 18 }}>
-              <span style={{ fontSize: 20, fontWeight: 600, color: '#555', letterSpacing: 0.5 }}>
+              <span style={{ fontSize: 30, fontWeight: 600, color: '#555', letterSpacing: 0.5 }}>
                 想了解什么吗
               </span>
             </div>
@@ -314,6 +305,13 @@ const AgentChatPage: React.FC = () => {
         ) : (
           <>
             <MessageList messages={messages} />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+              <img
+                src="/assets/jinko-logo-en.png"
+                alt="Jinko ESS"
+                style={{ height: 40, objectFit: 'contain', mixBlendMode: 'multiply' }}
+              />
+            </div>
             <ChatInput
               kbs={kbs}
               selectedKBs={selectedKBs}

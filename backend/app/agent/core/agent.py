@@ -99,7 +99,7 @@ def create_agent(
     # ── RAG Search Tool ──────────────────────────────────────
 
     @agent.tool
-    async def rag_search(ctx: RunContext[AgentDeps], query: str, top_k: int = 5) -> str:
+    async def kb_search(ctx: RunContext[AgentDeps], query: str, top_k: int = 5) -> str:
         """检索知识库，查找技术文档、产品手册、FAQ 中的相关内容。
 
         Args:

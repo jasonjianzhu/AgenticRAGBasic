@@ -32,21 +32,14 @@ const AgentLayout: React.FC = () => (
           zIndex: 100,
         }}
       >
-        <span style={{ fontSize: 18, fontWeight: 700, color: '#008544', letterSpacing: 1 }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: '#008544', letterSpacing: 1 }}>
           储能Agent问答平台
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <img
-            src="/assets/jinko-logo-cn.png"
-            alt="晶科储能"
-            style={{ height: 28, objectFit: 'contain' }}
-          />
-          <img
-            src="/assets/jinko-logo-en.png"
-            alt="Jinko ESS"
-            style={{ height: 32, objectFit: 'contain' }}
-          />
-        </div>
+        <img
+          src="/assets/jinko-logo-cn.png"
+          alt="晶科储能"
+          style={{ height: 35, objectFit: 'contain' }}
+        />
       </Header>
 
       {/* 内容区 */}
