@@ -27,7 +27,9 @@ Thumbs.db
 
 # Environment
 .env
+.env.*
 !.env.example
+!.env.*.example
 
 # Logs
 var/logs/
