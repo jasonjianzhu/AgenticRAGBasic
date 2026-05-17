@@ -4,7 +4,8 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
@@ -21,23 +22,221 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.usage import UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pydantic_ai.usage import UsageLimits
-from app.common.core.config import Settings, get_settings
-from app.common.core.logging import get_logger
 from app.agent.core.agent import AgentDeps, create_agent
 from app.agent.core.prompts import build_system_prompt
 from app.agent.services.session import SessionService
 from app.agent.sql.executor import SQLExecutor
 from app.agent.sql.schema_loader import SchemaLoader
 from app.agent.sql.validator import SQLValidator
+from app.common.core.config import Settings, get_settings
+from app.common.core.logging import get_logger
 from app.rag.services.rag_service import RAGService
 
 logger = get_logger(__name__)
 
 _agent: Agent | None = None
 _schema_description: str = ""
+_EMPTY_RESPONSE_RETRY_HINT = (
+    "上一轮没有生成最终答案。请基于当前会话上下文回答用户刚才的问题；"
+    "如涉及业务数据请调用 sql_query；必须输出最终回答，不要只输出思考过程。"
+)
+
+
+def _suffix_prefix_len(text: str, marker: str) -> int:
+    """Length of the longest text suffix that is also a marker prefix."""
+    max_len = min(len(text), len(marker) - 1)
+    for size in range(max_len, 0, -1):
+        if marker.startswith(text[-size:]):
+            return size
+    return 0
+
+
+class _ThinkTagStreamParser:
+    """Split streamed text into answer tokens and thinking chunks."""
+
+    _OPEN = "<think>"
+    _CLOSE = "</think>"
+
+    def __init__(self) -> None:
+        self._in_think = False
+        self._pending = ""
+
+    def feed(self, text: str) -> list[tuple[str, str]]:
+        events: list[tuple[str, str]] = []
+        remaining = self._pending + text
+        self._pending = ""
+
+        while remaining:
+            marker = self._CLOSE if self._in_think else self._OPEN
+            marker_idx = remaining.find(marker)
+
+            if marker_idx >= 0:
+                content = remaining[:marker_idx]
+                if content:
+                    events.append((self._event_type, content))
+                self._in_think = not self._in_think
+                remaining = remaining[marker_idx + len(marker):]
+                continue
+
+            pending_len = _suffix_prefix_len(remaining, marker)
+            content = remaining[:-pending_len] if pending_len else remaining
+            if content:
+                events.append((self._event_type, content))
+            self._pending = remaining[-pending_len:] if pending_len else ""
+            break
+
+        return events
+
+    def flush(self) -> list[tuple[str, str]]:
+        if not self._pending:
+            return []
+        event = (self._event_type, self._pending)
+        self._pending = ""
+        return [event]
+
+    @property
+    def _event_type(self) -> str:
+        return "thinking" if self._in_think else "token"
+
+
+async def _emit_parsed_text(
+    content: str,
+    parser: _ThinkTagStreamParser,
+    event_queue: asyncio.Queue[dict | None],
+) -> None:
+    for event_type, text in parser.feed(content):
+        await event_queue.put({
+            "event": event_type,
+            "data": {"content": text},
+        })
+
+
+async def _handle_agent_stream_event(
+    event: Any,
+    parser: _ThinkTagStreamParser,
+    event_queue: asyncio.Queue[dict | None],
+) -> None:
+    if isinstance(event, PartStartEvent):
+        part = event.part
+        if isinstance(part, ThinkingPart) and part.content:
+            await event_queue.put({
+                "event": "thinking",
+                "data": {"content": part.content},
+            })
+        elif isinstance(part, TextPart) and part.content:
+            await _emit_parsed_text(part.content, parser, event_queue)
+        return
+
+    if isinstance(event, PartDeltaEvent):
+        delta = event.delta
+        if isinstance(delta, ThinkingPartDelta):
+            content = delta.content_delta
+            if content:
+                await event_queue.put({
+                    "event": "thinking",
+                    "data": {"content": content},
+                })
+        elif isinstance(delta, TextPartDelta):
+            content = delta.content_delta
+            if content:
+                await _emit_parsed_text(content, parser, event_queue)
+
+
+def _new_stream_stats() -> dict[str, Any]:
+    return {
+        "first_event_type": None,
+        "last_event_type": None,
+        "thinking_chars": 0,
+        "token_chars": 0,
+        "tool_start_count": 0,
+        "tool_result_count": 0,
+        "chart_count": 0,
+        "data_table_count": 0,
+        "citation_count": 0,
+    }
+
+
+def _record_stream_event(stream_stats: dict[str, Any], event: dict) -> None:
+    event_type = event["event"]
+    if stream_stats["first_event_type"] is None:
+        stream_stats["first_event_type"] = event_type
+    stream_stats["last_event_type"] = event_type
+
+    if event_type == "thinking":
+        content = event.get("data", {}).get("content", "")
+        stream_stats["thinking_chars"] += len(content) if isinstance(content, str) else 0
+    elif event_type == "token":
+        content = event.get("data", {}).get("content", "")
+        stream_stats["token_chars"] += len(content) if isinstance(content, str) else 0
+    elif event_type == "tool_start":
+        stream_stats["tool_start_count"] += 1
+    elif event_type == "tool_result":
+        stream_stats["tool_result_count"] += 1
+    elif event_type == "chart":
+        stream_stats["chart_count"] += 1
+    elif event_type == "data_table":
+        stream_stats["data_table_count"] += 1
+    elif event_type == "citation":
+        stream_stats["citation_count"] += 1
+
+
+def _has_visible_stream_events(stream_stats: dict[str, Any]) -> bool:
+    return (
+        stream_stats["token_chars"] > 0
+        or stream_stats["tool_result_count"] > 0
+        or stream_stats["chart_count"] > 0
+        or stream_stats["data_table_count"] > 0
+    )
+
+
+def _summarize_model_messages(messages: list[ModelMessage]) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "new_messages_count": len(messages),
+        "model_request_count": 0,
+        "model_response_count": 0,
+        "thinking_part_count": 0,
+        "thinking_chars": 0,
+        "text_part_count": 0,
+        "text_chars": 0,
+        "tool_call_part_count": 0,
+        "tool_return_part_count": 0,
+        "tool_names": [],
+        "response_part_types": [],
+    }
+    tool_names: list[str] = []
+
+    for msg in messages:
+        parts = getattr(msg, "parts", [])
+        if isinstance(msg, ModelRequest):
+            summary["model_request_count"] += 1
+        elif isinstance(msg, ModelResponse):
+            summary["model_response_count"] += 1
+            summary["response_part_types"].append([part.__class__.__name__ for part in parts])
+
+        for part in parts:
+            if isinstance(part, ThinkingPart):
+                summary["thinking_part_count"] += 1
+                summary["thinking_chars"] += len(part.content or "")
+            elif isinstance(part, TextPart):
+                summary["text_part_count"] += 1
+                summary["text_chars"] += len(part.content or "")
+            elif isinstance(part, ToolCallPart):
+                summary["tool_call_part_count"] += 1
+                tool_names.append(part.tool_name)
+            elif isinstance(part, ToolReturnPart):
+                summary["tool_return_part_count"] += 1
+                tool_names.append(part.tool_name)
+
+    summary["tool_names"] = sorted(set(tool_names))
+    summary["response_part_types"] = summary["response_part_types"][:10]
+    return summary
+
+
+def _build_empty_response_retry_message(message: str) -> str:
+    return f"{message}\n\n[系统恢复提示] {_EMPTY_RESPONSE_RETRY_HINT}"
 
 
 async def _get_or_create_agent(settings: Settings) -> Agent:
@@ -57,8 +256,8 @@ async def _get_or_create_agent(settings: Settings) -> Agent:
     if "/anthropic" in base_url:
         # Anthropic-compatible API (e.g. DeepSeek, MiniMax Anthropic endpoint)
         os.environ.setdefault("ANTHROPIC_API_KEY", api_key)
-        from pydantic_ai.providers.anthropic import AnthropicProvider
         import anthropic
+        from pydantic_ai.providers.anthropic import AnthropicProvider
         client = anthropic.AsyncAnthropic(api_key=api_key, base_url=base_url)
         provider = AnthropicProvider(anthropic_client=client)
         model_name = f"anthropic:{model_id}"
@@ -181,109 +380,43 @@ class ChatService:
         agent = await _get_or_create_agent(self._settings)
         message_history = self._build_message_history(history[:-1] if history else [])
 
-        # 6. event_stream_handler — captures text and thinking deltas in real-time
-        #
-        # DeepSeek via OpenAI-compatible API sends thinking content as <think>...</think>
-        # tags inside TextPartDelta (not as ThinkingPartDelta). We parse the tags in
-        # real-time to split into "thinking" and "token" events.
-        #
-        # State machine: _in_think tracks whether we're inside a <think> block.
+        # 6. event_stream_handler — captures text and thinking deltas in real-time.
+        # DeepSeek can send thinking as native Anthropic thinking parts or as
+        # <think> tags inside text deltas; build a fresh parser per run.
 
-        _in_think = False
+        def make_stream_handler():
+            think_parser = _ThinkTagStreamParser()
 
-        async def stream_handler(run_ctx, event_stream):
-            nonlocal _in_think
-            async for event in event_stream:
-                if isinstance(event, PartStartEvent):
-                    part = event.part
-                    if isinstance(part, ThinkingPart) and part.content:
-                        await event_queue.put({
-                            "event": "thinking",
-                            "data": {"content": part.content},
-                        })
-                    elif isinstance(part, TextPart) and part.content:
-                        await _parse_think_tags(part.content, event_queue)
-                elif isinstance(event, PartDeltaEvent):
-                    delta = event.delta
-                    if isinstance(delta, ThinkingPartDelta):
-                        # Native thinking support (Anthropic-style) — forward directly
-                        content = delta.content_delta
-                        if content:
-                            await event_queue.put({
-                                "event": "thinking",
-                                "data": {"content": content},
-                            })
-                    elif isinstance(delta, TextPartDelta):
-                        content = delta.content_delta
-                        if not content:
-                            continue
-                        # Parse <think> tags from the text stream
-                        await _parse_think_tags(content, event_queue)
+            async def stream_handler(run_ctx, event_stream):
+                async for event in event_stream:
+                    await _handle_agent_stream_event(event, think_parser, event_queue)
+                for event_type, content in think_parser.flush():
+                    await event_queue.put({
+                        "event": event_type,
+                        "data": {"content": content},
+                    })
 
-        async def _parse_think_tags(text: str, queue: asyncio.Queue) -> None:
-            """Parse <think>...</think> tags from streaming text chunks.
-
-            Handles tags that may be split across multiple chunks:
-            - chunk1: "Let me <thi"  chunk2: "nk>reasoning"  chunk3: "</think>answer"
-            """
-            nonlocal _in_think
-            remaining = text
-
-            while remaining:
-                if _in_think:
-                    # Inside <think> block — look for closing tag
-                    close_idx = remaining.find("</think>")
-                    if close_idx != -1:
-                        # Found closing tag — emit thinking content, switch to text mode
-                        think_content = remaining[:close_idx]
-                        if think_content:
-                            await queue.put({
-                                "event": "thinking",
-                                "data": {"content": think_content},
-                            })
-                        _in_think = False
-                        remaining = remaining[close_idx + len("</think>"):]
-                    else:
-                        # No closing tag yet — all remaining is thinking content
-                        if remaining:
-                            await queue.put({
-                                "event": "thinking",
-                                "data": {"content": remaining},
-                            })
-                        remaining = ""
-                else:
-                    # Outside <think> block — look for opening tag
-                    open_idx = remaining.find("<think>")
-                    if open_idx != -1:
-                        # Found opening tag — emit text before it, switch to think mode
-                        text_before = remaining[:open_idx]
-                        if text_before:
-                            await queue.put({
-                                "event": "token",
-                                "data": {"content": text_before},
-                            })
-                        _in_think = True
-                        remaining = remaining[open_idx + len("<think>"):]
-                    else:
-                        # No opening tag — all remaining is regular text
-                        if remaining:
-                            await queue.put({
-                                "event": "token",
-                                "data": {"content": remaining},
-                            })
-                        remaining = ""
+            return stream_handler
 
         # 7. Run agent in background task
         result_text = ""
         agent_error = None
         collected_charts: list[dict] = []
         new_messages: list[ModelMessage] = []
+        stream_stats = _new_stream_stats()
+        retry_attempted = False
+        retry_skipped = False
+        first_empty_summary: dict[str, Any] = {}
+        first_empty_stream_stats: dict[str, Any] = {}
 
-        async def run_agent():
+        async def run_agent(run_message: str, retry_attempt: int = 0):
             nonlocal result_text, agent_error, new_messages
+            result_text = ""
+            agent_error = None
+            new_messages = []
             try:
                 result = await agent.run(
-                    message,
+                    run_message,
                     deps=deps,
                     message_history=message_history,
                     model_settings={
@@ -291,18 +424,18 @@ class ChatService:
                         "max_tokens": self._settings.llm_max_tokens,
                     },
                     usage_limits=UsageLimits(tool_calls_limit=8),
-                    event_stream_handler=stream_handler,
+                    event_stream_handler=make_stream_handler(),
                 )
                 result_text = result.response.text or ""
                 new_messages = result.new_messages()
-                logger.info("agent_run_complete", text_len=len(result_text))
+                logger.info("agent_run_complete", text_len=len(result_text), retry_attempt=retry_attempt)
             except Exception as e:
-                logger.error("agent_run_error", error=str(e))
+                logger.error("agent_run_error", error=str(e), retry_attempt=retry_attempt)
                 agent_error = str(e)
             finally:
                 await event_queue.put(None)  # signal done
 
-        agent_task = asyncio.create_task(run_agent())
+        agent_task = asyncio.create_task(run_agent(message))
 
         # 8. Yield all events from queue until agent completes
         try:
@@ -310,6 +443,7 @@ class ChatService:
                 event = await event_queue.get()
                 if event is None:
                     break
+                _record_stream_event(stream_stats, event)
                 if event["event"] == "chart":
                     collected_charts.append(event["data"])
                 yield event
@@ -321,13 +455,119 @@ class ChatService:
 
         await agent_task
 
+        first_run_stream_stats = dict(stream_stats)
+        first_run_summary = _summarize_model_messages(new_messages)
+        if first_run_stream_stats["token_chars"] == 0:
+            logger.warning(
+                "agent_stream_no_answer_tokens",
+                session_id=str(session_id),
+                message_preview=message[:80],
+                has_thinking=first_run_stream_stats["thinking_chars"] > 0,
+                thinking_chars=first_run_stream_stats["thinking_chars"],
+                token_chars=first_run_stream_stats["token_chars"],
+                tool_call_count=first_run_stream_stats["tool_start_count"],
+                agent_error=agent_error,
+                retry_attempt=0,
+            )
+
+        if not agent_error and not result_text:
+            first_empty_summary = first_run_summary
+            first_empty_stream_stats = first_run_stream_stats
+            logger.warning(
+                "agent_empty_response_diagnostic",
+                session_id=str(session_id),
+                message_preview=message[:80],
+                result_text_len=len(result_text),
+                stream_stats=first_empty_stream_stats,
+                message_summary=first_empty_summary,
+            )
+
+            if _has_visible_stream_events(first_run_stream_stats):
+                retry_skipped = True
+                logger.info(
+                    "agent_empty_response_retry_skipped",
+                    session_id=str(session_id),
+                    reason="visible_events_already_emitted",
+                    stream_stats=first_run_stream_stats,
+                    message_summary=first_empty_summary,
+                )
+            else:
+                retry_attempted = True
+                logger.info(
+                    "agent_empty_response_retry_start",
+                    session_id=str(session_id),
+                    message_preview=message[:80],
+                    reason="empty_result_text",
+                    stream_stats=first_run_stream_stats,
+                    message_summary=first_empty_summary,
+                )
+                event_queue = asyncio.Queue()
+                retry_message = _build_empty_response_retry_message(message)
+                agent_task = asyncio.create_task(run_agent(retry_message, retry_attempt=1))
+
+                try:
+                    while True:
+                        event = await event_queue.get()
+                        if event is None:
+                            break
+                        _record_stream_event(stream_stats, event)
+                        if event["event"] == "chart":
+                            collected_charts.append(event["data"])
+                        yield event
+                except (asyncio.CancelledError, GeneratorExit):
+                    agent_task.cancel()
+                    logger.info(
+                        "agent_task_cancelled_on_disconnect",
+                        session_id=str(session_id),
+                        retry_attempt=1,
+                    )
+                    return
+
+                await agent_task
+                retry_summary = _summarize_model_messages(new_messages)
+                retry_stream_stats = {
+                    key: stream_stats[key] - first_run_stream_stats.get(key, 0)
+                    for key in (
+                        "thinking_chars",
+                        "token_chars",
+                        "tool_start_count",
+                        "tool_result_count",
+                        "chart_count",
+                        "data_table_count",
+                        "citation_count",
+                    )
+                }
+                retry_stream_stats["cumulative_first_event_type"] = stream_stats["first_event_type"]
+                retry_stream_stats["cumulative_last_event_type"] = stream_stats["last_event_type"]
+                logger.info(
+                    "agent_empty_response_retry_result",
+                    session_id=str(session_id),
+                    recovered=bool(result_text),
+                    retry_text_len=len(result_text),
+                    retry_error=agent_error,
+                    retry_stream_stats=retry_stream_stats,
+                    retry_message_summary=retry_summary,
+                )
+                if retry_stream_stats["token_chars"] == 0:
+                    logger.warning(
+                        "agent_stream_no_answer_tokens",
+                        session_id=str(session_id),
+                        message_preview=message[:80],
+                        has_thinking=retry_stream_stats["thinking_chars"] > 0,
+                        thinking_chars=retry_stream_stats["thinking_chars"],
+                        token_chars=retry_stream_stats["token_chars"],
+                        tool_call_count=retry_stream_stats["tool_start_count"],
+                        agent_error=agent_error,
+                        retry_attempt=1,
+                    )
+
         # 9. Save assistant message + tool call history
         if result_text:
             cleaned_text = _clean_think_tags(result_text)
             try:
                 tool_calls_meta, final_thinking = self._extract_tool_calls_meta(new_messages)
-                from app.common.db.session import async_session_factory
                 from app.common.db.models import ChatMessage
+                from app.common.db.session import async_session_factory
                 async with async_session_factory() as save_session:
                     msg = ChatMessage(
                         session_id=session_id,
@@ -347,11 +587,29 @@ class ChatService:
 
         # 10. Emit error, fallback, or citations
         if agent_error:
+            logger.info(
+                "agent_error_emitted",
+                session_id=str(session_id),
+                error=agent_error,
+                retry_attempted=retry_attempted,
+                stream_stats=stream_stats,
+                message_summary=_summarize_model_messages(new_messages),
+            )
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
         elif not result_text:
             # Model returned empty text (e.g. only thinking, no output)
             fallback = "抱歉，模型未能生成有效回复，请重新提问或换一种问法。"
-            logger.warning("agent_empty_response", session_id=str(session_id))
+            logger.warning(
+                "agent_empty_response",
+                session_id=str(session_id),
+                message_preview=message[:80],
+                retry_attempted=retry_attempted,
+                retry_skipped=retry_skipped,
+                stream_stats=stream_stats,
+                first_message_summary=first_empty_summary,
+                first_stream_stats=first_empty_stream_stats,
+                message_summary=_summarize_model_messages(new_messages),
+            )
             yield {"event": "token", "data": {"content": fallback}}
         else:
             cleaned_text = _clean_think_tags(result_text)
@@ -365,6 +623,7 @@ class ChatService:
                     if key in deps.collected_citations:
                         cit = deps.collected_citations[key]
                         cit["index"] = len(emitted) + 1
+                        stream_stats["citation_count"] += 1
                         yield {"event": "citation", "data": cit}
                         emitted.add(key)
                     else:
@@ -372,6 +631,7 @@ class ChatService:
                             if cite_key in key or key in cite_key:
                                 if cite_key not in emitted:
                                     cit["index"] = len(emitted) + 1
+                                    stream_stats["citation_count"] += 1
                                     yield {"event": "citation", "data": cit}
                                     emitted.add(cite_key)
                                 break
@@ -382,7 +642,25 @@ class ChatService:
                      session_id=str(session_id),
                      duration_ms=_chat_duration,
                      has_error=bool(agent_error),
-                     text_len=len(result_text))
+                     text_len=len(result_text),
+                     retry_attempted=retry_attempted,
+                     retry_skipped=retry_skipped)
+        logger.info(
+            "agent_stream_lifecycle",
+            session_id=str(session_id),
+            first_event_type=stream_stats["first_event_type"],
+            last_event_type=stream_stats["last_event_type"],
+            thinking_chars=stream_stats["thinking_chars"],
+            token_chars=stream_stats["token_chars"],
+            tool_start_count=stream_stats["tool_start_count"],
+            tool_result_count=stream_stats["tool_result_count"],
+            chart_count=stream_stats["chart_count"],
+            data_table_count=stream_stats["data_table_count"],
+            citation_count=stream_stats["citation_count"],
+            retry_attempted=retry_attempted,
+            retry_skipped=retry_skipped,
+            ended_by="error" if agent_error else "done",
+        )
         yield {"event": "done", "data": {"session_id": str(session_id)}}
 
     def _build_message_history(self, history: list[dict]) -> list[ModelMessage]:

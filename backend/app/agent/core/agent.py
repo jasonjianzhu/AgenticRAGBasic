@@ -11,11 +11,10 @@ from typing import Any
 
 from pydantic_ai import Agent, RunContext
 
-from app.common.core.logging import get_logger
-from app.agent.core.prompts import build_system_prompt
 from app.agent.tools.chart import ChartAxis, ChartConfig, ChartSeries
 from app.agent.tools.rag_search import RAGSearchChunk, RAGSearchOutput
 from app.agent.tools.sql_query import SQLQueryOutput
+from app.common.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -107,11 +106,25 @@ def create_agent(
             top_k: 返回结果数量，默认5
         """
         deps = ctx.deps
+        raw_query = query
         if not query.strip():
             prompt_text = ctx.prompt if isinstance(ctx.prompt, str) else ""
             query = prompt_text.strip() or query
+            if query.strip():
+                logger.info(
+                    "rag_search_tool_query_resolved",
+                    tool_name="kb_search",
+                    raw_query=raw_query,
+                    prompt_text=prompt_text[:160],
+                    resolved_query=query[:160],
+                )
         if not query.strip():
-            logger.warning("kb_search_empty_query", raw_query=query)
+            logger.warning(
+                "rag_search_tool_invalid_args",
+                tool_name="kb_search",
+                raw_args={"query": query, "top_k": top_k},
+                error_reason="query_missing_or_empty",
+            )
             if deps.emit_event:
                 await deps.emit_event("tool_result", {
                     "tool": "kb_search",
@@ -125,6 +138,13 @@ def create_agent(
             })
 
         try:
+            logger.info(
+                "rag_search_tool_start",
+                tool_name="kb_search",
+                query=query[:120],
+                top_k=top_k,
+                kb_ids=[str(kb_id) for kb_id in deps.kb_ids],
+            )
             result = await deps.rag_service.search(
                 query=query,
                 kb_ids=deps.kb_ids,
@@ -167,6 +187,7 @@ def create_agent(
             logger.info("rag_search_tool_result",
                         query=query,
                         chunks=len(output.chunks),
+                        total_hits=output.total_hits,
                         titles=[c.document_title for c in output.chunks],
                         content_preview=text_result[:300])
             return text_result
