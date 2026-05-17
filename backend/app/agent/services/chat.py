@@ -305,13 +305,19 @@ class ChatService:
         agent_task = asyncio.create_task(run_agent())
 
         # 8. Yield all events from queue until agent completes
-        while True:
-            event = await event_queue.get()
-            if event is None:
-                break
-            if event["event"] == "chart":
-                collected_charts.append(event["data"])
-            yield event
+        try:
+            while True:
+                event = await event_queue.get()
+                if event is None:
+                    break
+                if event["event"] == "chart":
+                    collected_charts.append(event["data"])
+                yield event
+        except (asyncio.CancelledError, GeneratorExit):
+            # Client disconnected — cancel the agent task to free resources
+            agent_task.cancel()
+            logger.info("agent_task_cancelled_on_disconnect", session_id=str(session_id))
+            return
 
         await agent_task
 
@@ -339,10 +345,15 @@ class ChatService:
             except Exception as e:
                 logger.error("save_assistant_message_error", error=str(e))
 
-        # 10. Emit error or citations
+        # 10. Emit error, fallback, or citations
         if agent_error:
             yield {"event": "error", "data": {"message": f"Agent 执行失败: {agent_error}"}}
-        elif result_text:
+        elif not result_text:
+            # Model returned empty text (e.g. only thinking, no output)
+            fallback = "抱歉，模型未能生成有效回复，请重新提问或换一种问法。"
+            logger.warning("agent_empty_response", session_id=str(session_id))
+            yield {"event": "token", "data": {"content": fallback}}
+        else:
             cleaned_text = _clean_think_tags(result_text)
             if deps.collected_citations:
                 cited_keys = re.findall(r'【([^】]+)】', cleaned_text)

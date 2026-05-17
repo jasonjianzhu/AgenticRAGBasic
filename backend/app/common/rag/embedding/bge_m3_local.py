@@ -52,12 +52,26 @@ class BGEM3LocalEmbeddingProvider(EmbeddingProvider):
                 model_path=self._model_path,
                 use_fp16=self._use_fp16,
             )
+            import torch
             from FlagEmbedding import BGEM3FlagModel
 
-            self._model = BGEM3FlagModel(
-                self._model_path,
-                use_fp16=self._use_fp16,
-            )
+            _orig_to = torch.nn.Module.to
+
+            def _safe_to(self_mod, *args, **kwargs):
+                try:
+                    return _orig_to(self_mod, *args, **kwargs)
+                except NotImplementedError:
+                    device = args[0] if args else kwargs.get("device")
+                    return self_mod.to_empty(device=device)
+
+            torch.nn.Module.to = _safe_to
+            try:
+                self._model = BGEM3FlagModel(
+                    self._model_path,
+                    use_fp16=self._use_fp16,
+                )
+            finally:
+                torch.nn.Module.to = _orig_to
             logger.info("bge_m3_model_loaded", model_path=self._model_path)
         return self._model
 

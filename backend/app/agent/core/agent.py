@@ -85,7 +85,7 @@ def create_agent(
             instructions=system_prompt,
             deps_type=AgentDeps,
             output_type=str,
-            retries=2,
+            retries=3,
         )
     else:
         agent = Agent(
@@ -93,7 +93,7 @@ def create_agent(
             instructions=system_prompt,
             deps_type=AgentDeps,
             output_type=str,
-            retries=2,
+            retries=3,
         )
 
     # ── RAG Search Tool ──────────────────────────────────────

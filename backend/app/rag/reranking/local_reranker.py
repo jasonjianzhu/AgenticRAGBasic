@@ -32,7 +32,11 @@ class LocalReranker(BaseReranker):
             logger.info("loading_reranker_model", model_path=self._model_path)
             from sentence_transformers import CrossEncoder
 
-            self._model = CrossEncoder(self._model_path, trust_remote_code=True)
+            self._model = CrossEncoder(
+                self._model_path,
+                trust_remote_code=True,
+                model_kwargs={"low_cpu_mem_usage": False},
+            )
             logger.info("reranker_model_loaded", model_path=self._model_path)
         return self._model
 
